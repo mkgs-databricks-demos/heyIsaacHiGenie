@@ -25,17 +25,19 @@ team of named AI agents (personas) working on one project. The App plays three r
                        │                        │                    │
                        │                        ▼                    │
                        │                   Lakebase (Postgres)       │
-                       └───────────────┬──────────────┬─────────────┘
-                                       │              │
-                          GitHub REST/GraphQL    (no working copy
-                            (branches, PRs)       on the App)
-                                       │
-        ┌──────────────────┬──────────┴───────────┬────────────────────┐
+                       └──────────────┬───────────────┬────────────────┘
+                                      │               │
+                      read-only GitHub App      (no working copy,
+                      (webhooks / PR observe)    no git execution
+                                      │            on the App)
+                                      │
+        ┌──────────────────┬─────────┴────────────┬────────────────────┐
         ▼                  ▼                       ▼                    ▼
    Isaac (Mac,        Genie (Databricks,     Other DB agents      Omnigent
    Xcode/Swift)       Git folders)           (via UC connection)  sub-agents
         │                  │                       │                    │
-        └──────────────── each does its own local git clone / sparse checkout ───┘
+        ├── each does its own git via its OWN GitHub MCP (per-user OBO writes) ──┤
+        └──────────────── clone / sparse-checkout / branch / commit / PR ────────┘
 ```
 
 ## Topology — who runs where
@@ -56,13 +58,15 @@ needs it in Databricks), the actual checkout has to live where each agent runs.
 So the system is split into two layers:
 
 - **Policy / orchestration (the App):** stores config and conventions, issues identity, brokers
-  messaging and memory, and talks to **GitHub via REST/GraphQL only** (creating branch refs and
-  PRs needs no working tree). Stateless with respect to code.
-- **Execution (each agent, locally):** performs the real `git clone` / sparse-checkout /
-  commit / push, and builds/tests in its own environment.
+  messaging and memory, and **governs** git work — it defines which repo a project uses, each
+  agent's working area, and the branch/merge rules, then records the agents' git artifacts back
+  into the work graph. It does **not** perform git operations itself. Stateless with respect to code.
+- **Execution (each agent, locally):** uses its **own GitHub MCP** for the real `git clone` /
+  sparse-checkout / commit / push / open-PR, and builds/tests in its own environment.
 
-This keeps the App light, avoids a centralized-working-tree concurrency nightmare, and lets each
-agent use the toolchain native to its domain.
+This keeps the App light, avoids a centralized-working-tree concurrency nightmare, avoids
+recreating GitHub tooling the agents already have, and lets each agent use the toolchain native to
+its domain. (See [GitHub integration](05-github-integration.md) for the governor-not-broker model.)
 
 ## Multi-tenancy
 

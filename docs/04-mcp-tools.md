@@ -24,22 +24,24 @@ membership are **never trusted from the request body**.
 | `write_session_summary` | Record persona (+ optional sub-agent label) memory: summary, blockers, next steps. |
 | `get_session_summaries` | Read own or a teammate's summaries, by project / persona / date. |
 
-## Git / repo
+## Git / repo — governance & linkage only
 
-See [GitHub integration](05-github-integration.md) for the full policy. The App performs all of
-these through the **GitHub REST/GraphQL API** — no server-side working copy.
+The App does **not** perform git operations. Agents use their **own GitHub MCP** to clone,
+branch, commit, push, and open PRs. Our App's git tools only (a) tell an agent the rules and its
+working area, and (b) record the agent's git artifacts back into the connected work graph. See
+[GitHub integration](05-github-integration.md) for the full rationale.
 
 | Tool | Description |
 |---|---|
-| `get_repo_config` | Repo URL(s), default branch, clone mode, conventions for the project. |
-| `get_my_checkout_spec` | The calling persona's clone mode + sparse cone paths, so it sets up its working copy correctly. |
-| `create_feature_branch` | Creates a branch ref off default HEAD via API; generates a conventional name; links to task/thread. Returns branch name. |
-| `open_pull_request` | Opens a PR from the agent's branch; links to thread/task. |
-| `get_pull_request_status` | Read PR state, reviews, CI. |
-| `comment_on_pr` | Comment on a PR — lets agents negotiate API contracts on the PR itself. |
+| `get_repo_config` | Which repo backs this project + default branch, clone mode, branch-naming convention, and the always-branch / never-merge rule. |
+| `get_my_checkout_spec` | The calling persona's clone mode + sparse cone paths + the branch name to use, so it configures its own checkout correctly. |
+| `link_branch` | Agent reports a branch its GitHub MCP created; App records `branch_ref` on the thread/task. |
+| `link_pull_request` | Agent reports a PR its GitHub MCP opened; App writes a `pull_requests` row linked to the thread/task. |
 
-> **Deliberately absent: `merge_pull_request`.** Agents never merge. This is the soft guard;
-> the hard guard is GitHub branch protection (see the GitHub doc).
+> **No executing git tools, by design.** `create_feature_branch`, `open_pull_request`,
+> `comment_on_pr`, and especially `merge_pull_request` live in the **agent's own GitHub MCP**, not
+> here — we don't recreate the wheel. The never-merge guarantee therefore rests on **GitHub branch
+> protection** (the hard guard), not on tool absence in our server.
 
 ## Agile board (later phase)
 
@@ -55,12 +57,16 @@ Exposed once the board tables have UI behind them.
 - Keep tool names simple and descriptive so agents discover them naturally.
 - Every write tool stamps `author_user_id` (from OBO) + `parent_agent_id` (from persona token)
   + optional `sub_agent_label`.
-- Tools that create git artifacts populate `branch_ref` on the linked thread/task and add a row
-  to `pull_requests`, keeping the connected work graph consistent.
+- Git **linkage** tools (`link_branch` / `link_pull_request`) populate `branch_ref` on the linked
+  thread/task and add a row to `pull_requests`, keeping the connected work graph consistent —
+  without the App ever touching GitHub itself. These are the **primary** linkage path; a later
+  read-only GitHub App observe layer reconciles authoritative lifecycle state on top (see
+  [GitHub integration](05-github-integration.md)).
 
 ## Decisions
 
 - Streamable HTTP transport at `/mcp`.
 - Persona/nickname resolved from the token, never the body.
-- No merge tool exists; branching/PR tools only.
+- Git execution lives in agents' own GitHub MCP; our server exposes only governance + linkage
+  tools (no `create_feature_branch` / `open_pull_request` / `merge_pull_request`).
 - Board tools deferred with the board UI.
