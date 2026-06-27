@@ -1,0 +1,38 @@
+# Unity Catalog schema for Hey Isaac / Hi Genie multi-agent coordination data.
+#
+# This is the ONLY resource file that references ${var.catalog} / ${var.schema} directly.
+# All other resources in this bundle and in hey-isaac-ai must derive the schema identity
+# through deployed-resource substitutions:
+#   Catalog:   ${resources.schemas.hi_genie_schema.catalog_name}
+#   Schema:    ${resources.schemas.hi_genie_schema.name}
+#   Full name: ${resources.schemas.hi_genie_schema.catalog_name}.${resources.schemas.hi_genie_schema.name}
+
+resources:
+  schemas:
+    hi_genie_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: >
+        Unity Catalog schema for the Hey Isaac / Hi Genie multi-agent coordination
+        platform. Stores messages, session summaries, agent rosters, project config,
+        repo config, tasks, and pull-request tracking.
+      lifecycle:
+        prevent_destroy: true
+      grants:
+        - principal: account users
+          privileges:
+            - USE_SCHEMA
+
+targets:
+
+  dev:
+    resources:
+      schemas:
+        hi_genie_schema:
+          grants:
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+            - principal: ${var.run_as_user}
+              privileges:
+                - ALL_PRIVILEGES
