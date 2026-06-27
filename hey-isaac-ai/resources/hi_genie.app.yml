@@ -1,0 +1,44 @@
+resources:
+  apps:
+    app:
+      name: ${var.app_name}
+      description: >
+        Hey Isaac? Hi Genie! — Multi-agent coordination platform.
+        MCP server, persona token issuer, and owner dashboard for Databricks AI agents
+        collaborating on a shared GitHub monorepo.
+      source_code_path: ..
+
+      user_api_scopes:
+        - postgres   # required for OBO per-user Lakebase connections (AppKit.lakebase.asUser)
+
+      resources:
+        - name: postgres
+          postgres:
+            branch: projects/${var.lakebase_project_id}/branches/production
+            database: projects/${var.lakebase_project_id}/branches/production/databases/${var.lakebase_database_id}
+            permission: CAN_CONNECT_AND_CREATE
+
+        # Persona token signing key (HMAC secret — admin provisioned)
+        - name: jwt-signing-key
+          secret:
+            scope: ${var.secret_scope_name}
+            key: jwt_signing_key
+            permission: READ
+
+        # GitHub OAuth App credentials for external agent auth (Phase 5)
+        - name: github-client-id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_client_id
+            permission: READ
+        - name: github-client-secret
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_client_secret
+            permission: READ
+
+      telemetry_export_destinations:
+        - unity_catalog:
+            logs_table: ${var.catalog}.${var.schema}.hi_genie_otel_logs
+            metrics_table: ${var.catalog}.${var.schema}.hi_genie_otel_metrics
+            traces_table: ${var.catalog}.${var.schema}.hi_genie_otel_traces

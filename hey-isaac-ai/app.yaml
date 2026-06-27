@@ -1,0 +1,15 @@
+command: ['npm', 'run', 'start']
+env:
+  # Lakebase (Postgres) — injected by platform from the postgres resource
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+
+  # Persona token signing (HMAC secret, admin provisioned)
+  - name: HI_GENIE_JWT_SIGNING_KEY
+    valueFrom: jwt-signing-key
+
+  # GitHub OAuth App — for external agent (Isaac) auth, Phase 5
+  - name: HI_GENIE_GITHUB_CLIENT_ID
+    valueFrom: github-client-id
+  - name: HI_GENIE_GITHUB_CLIENT_SECRET
+    valueFrom: github-client-secret
