@@ -1,0 +1,27 @@
+# Ensures the app's auto-provisioned SPN has READ on the secret scope.
+# Run by deploy.sh after the app bundle deploys and the SPN is known.
+# Idempotent — put_acl is an upsert.
+
+resources:
+  jobs:
+    configure_app_spn:
+      name: "[${bundle.target}] hi-genie configure app SPN scope access"
+      parameters:
+        - name: principal
+          default: ""
+        - name: secret_scope_name
+          default: ${var.secret_scope_name}
+      tasks:
+        - task_key: configure_spn
+          notebook_task:
+            notebook_path: ./src/notebooks/configure_app_spn
+            base_parameters:
+              principal: "{{job.parameters.principal}}"
+              secret_scope_name: ${var.secret_scope_name}
+          environment_key: serverless
+      environments:
+        - environment_key: serverless
+          spec:
+            client: "${var.serverless_environment_version}"
+      run_as:
+        user_name: ${var.run_as_user}

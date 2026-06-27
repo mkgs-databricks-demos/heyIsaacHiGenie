@@ -1,0 +1,23 @@
+# Post-deploy validation — verifies all app endpoints are reachable.
+# Run by deploy.sh after source code is deployed. Non-fatal if it fails.
+
+resources:
+  jobs:
+    post_deploy_validation:
+      name: "[${bundle.target}] hi-genie post-deploy validation"
+      parameters:
+        - name: app_name
+          default: ${var.app_name}
+      tasks:
+        - task_key: validate
+          notebook_task:
+            notebook_path: ./src/notebooks/post_deploy_validation
+            base_parameters:
+              app_name: ${var.app_name}
+          environment_key: serverless
+      environments:
+        - environment_key: serverless
+          spec:
+            client: "${var.serverless_environment_version}"
+      run_as:
+        user_name: ${var.run_as_user}

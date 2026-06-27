@@ -1,0 +1,33 @@
+{
+  "name": "hey-isaac-hi-genie",
+  "version": "0.1.0",
+  "description": "Multi-agent coordination platform — MCP server and owner dashboard on Databricks",
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development tsx watch server/server.ts",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && vite build",
+    "build:server": "tsdown --config tsdown.server.config.ts",
+    "start": "node build/index.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@databricks/appkit": "^0.36.0",
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "jose": "^5.9.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@databricks/appkit-ui": "^0.36.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsdown": "^0.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}
