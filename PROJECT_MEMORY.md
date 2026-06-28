@@ -286,7 +286,7 @@ production hardening.
 
 | # | Area | Gap | Action |
 |---|------|-----|--------|
-| S1 | Persona token | Closed by bundle-level `persona_issuer` and `deploy.sh` app.yaml placeholder injection. | Keep `HI_GENIE_PERSONA_ISSUER` as `__PERSONA_ISSUER_PLACEHOLDER__` in git; deploy.sh patches it before app bundle deploy and restores it after. |
+| S1 | Persona token | Closed by bundle-level `persona_issuer` and Databricks Apps `valueFrom: persona-issuer`. | `deploy.sh` writes the resolved issuer URL to the target secret scope as `persona_issuer` before app bundle deploy. |
 | S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
 | S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
 | S4 | DCR persistence | Client registry is in-memory (`Map`). Restarts lose all registered clients. | Move to a Lakebase `dcr_clients` table. Already noted in architecture docs. |

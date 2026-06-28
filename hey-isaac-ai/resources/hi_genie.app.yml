@@ -25,6 +25,13 @@ resources:
             key: jwt_signing_key
             permission: READ
 
+        # Persona token issuer URL (managed by deploy.sh)
+        - name: persona-issuer
+          secret:
+            scope: ${var.secret_scope_name}
+            key: persona_issuer
+            permission: READ
+
         # Dynamic Client Registration shared secret (admin provisioned)
         - name: dcr-shared-secret
           secret:

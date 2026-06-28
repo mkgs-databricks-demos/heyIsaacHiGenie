@@ -15,7 +15,7 @@ DABs `mode: development` auto-prefixes schemas, jobs, pipelines, and similar res
 
 Databricks secret values cannot be read back via the CLI. Operators must re-provision every required secret value into the new target-specific scopes.
 
-Secrets to migrate:
+Manually provisioned secrets to migrate:
 
 - `jwt_signing_key`
 - `dcr_shared_secret`
@@ -23,6 +23,12 @@ Secrets to migrate:
 - `github_client_secret`
 
 `github_client_id` and `github_client_secret` are stubs for Known Gap O2 and can be any non-empty string until real GitHub OAuth app credentials are provisioned.
+
+Deploy-managed secret:
+
+- `persona_issuer`
+
+`persona_issuer` is written automatically by `deploy.sh` on every app deploy using the resolved app name, workspace ID, and cloud. Operators do not need to provision it manually, but every target scope will contain this key after the first successful app deploy.
 
 ## Commands
 

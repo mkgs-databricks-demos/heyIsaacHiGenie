@@ -81,6 +81,9 @@ APP_NAME=""
 APP_SOURCE_PATH=""
 APP_SPN_CLIENT_ID=""
 USER_HANDLE=""
+APP_WORKSPACE_ID=""
+APP_CLOUD=""
+APP_SECRET_SCOPE=""
 
 # --------------------------------------------------------------------------- #
 # Defaults
@@ -238,60 +241,6 @@ deploy_bundle() {
       (cd_bundle "${bundle_dir}" && databricks bundle deploy --target "${TARGET}")
     fi
     ok "Deployed: ${bundle_name}"
-  fi
-}
-
-# --------------------------------------------------------------------------- #
-# resolve_persona_issuer — read resolved AI bundle persona_issuer variable
-# --------------------------------------------------------------------------- #
-resolve_persona_issuer() {
-  local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
-
-  (cd_bundle "${bundle_dir}" && databricks bundle summary \
-    --target "${TARGET}" \
-    "${APP_DEPLOY_ARGS[@]}" \
-    --output json 2>/dev/null | python3 -c "
-import json, sys
-
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    print('', end='')
-    sys.exit(0)
-
-variables = data.get('variables', {})
-issuer = variables.get('persona_issuer', {}).get('value', '')
-print(issuer, end='')
-") || true
-}
-
-# --------------------------------------------------------------------------- #
-# patch_app_yaml / restore_app_yaml — inject runtime app.yaml-only values
-# --------------------------------------------------------------------------- #
-patch_app_yaml() {
-  local issuer="$1"
-  local app_yaml="${SCRIPT_DIR}/${APP_BUNDLE}/app.yaml"
-
-  cp "${app_yaml}" "${app_yaml}.deploy_bak"
-  python3 - "${app_yaml}" "${issuer}" <<'PY'
-import sys
-from pathlib import Path
-
-app_yaml = Path(sys.argv[1])
-issuer = sys.argv[2]
-placeholder = '__PERSONA_ISSUER_PLACEHOLDER__'
-
-content = app_yaml.read_text()
-if placeholder not in content:
-    raise SystemExit(f'{placeholder} not found in {app_yaml}')
-app_yaml.write_text(content.replace(placeholder, issuer))
-PY
-}
-
-restore_app_yaml() {
-  local app_yaml="${SCRIPT_DIR}/${APP_BUNDLE}/app.yaml"
-  if [[ -f "${app_yaml}.deploy_bak" ]]; then
-    mv "${app_yaml}.deploy_bak" "${app_yaml}"
   fi
 }
 
@@ -637,6 +586,76 @@ build_app_deploy_args() {
 }
 
 # --------------------------------------------------------------------------- #
+# resolve_app_bundle_vars — read app URL/scope inputs from bundle summary
+# --------------------------------------------------------------------------- #
+resolve_app_bundle_vars() {
+  local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
+  log "Resolving app bundle variables for persona issuer"
+
+  local summary_json
+  summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary \
+    --target "${TARGET}" \
+    "${APP_DEPLOY_ARGS[@]}" \
+    --output json 2>/dev/null) || \
+    fail "Could not read bundle summary for ${APP_BUNDLE}."
+
+  eval "$(echo "${summary_json}" | python3 -c "
+import sys, json, re
+
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError as e:
+    print(f'RESOLVE_ERROR=\"{e}\"'); sys.exit(0)
+
+variables = data.get('variables', {})
+def get_var(name):
+    value = variables.get(name, {})
+    return value.get('value', '') if isinstance(value, dict) else (str(value) if value else '')
+
+def safe(v): return re.sub(r'[^a-zA-Z0-9_.\-]', '', str(v))
+
+app_name = ''
+for _, app in data.get('resources', {}).get('apps', {}).items():
+    if isinstance(app, dict) and app.get('name'):
+        app_name = app['name']; break
+if not app_name: app_name = get_var('app_name')
+
+print(f'APP_NAME=\"{safe(app_name)}\"')
+print(f'APP_WORKSPACE_ID=\"{safe(get_var("workspace_id"))}\"')
+print(f'APP_CLOUD=\"{safe(get_var("cloud"))}\"')
+print(f'APP_SECRET_SCOPE=\"{safe(get_var("secret_scope_name"))}\"')
+")" || fail "Could not parse app bundle summary."
+
+  [[ -n "${RESOLVE_ERROR:-}" ]]    && fail "App bundle summary parse error: ${RESOLVE_ERROR}"
+  [[ -n "${APP_NAME}" ]]           || fail "Could not resolve app_name."
+  [[ -n "${APP_WORKSPACE_ID}" ]]   || fail "Could not resolve workspace_id."
+  [[ -n "${APP_CLOUD}" ]]          || fail "Could not resolve cloud."
+  [[ -n "${APP_SECRET_SCOPE}" ]]   || fail "Could not resolve secret_scope_name."
+
+  ok "Persona issuer app:   ${APP_NAME}"
+  ok "Persona issuer scope: ${APP_SECRET_SCOPE}"
+}
+
+# --------------------------------------------------------------------------- #
+# write_persona_issuer_secret — manage app issuer secret before bundle deploy
+# --------------------------------------------------------------------------- #
+write_persona_issuer_secret() {
+  [[ -n "${APP_NAME}" ]]         || fail "APP_NAME is required to write persona_issuer."
+  [[ -n "${APP_WORKSPACE_ID}" ]] || fail "APP_WORKSPACE_ID is required to write persona_issuer."
+  [[ -n "${APP_CLOUD}" ]]        || fail "APP_CLOUD is required to write persona_issuer."
+  [[ -n "${APP_SECRET_SCOPE}" ]] || fail "APP_SECRET_SCOPE is required to write persona_issuer."
+
+  local issuer_url="https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/token/persona"
+
+  log "Writing persona_issuer to scope ${APP_SECRET_SCOPE}"
+  databricks secrets put-secret \
+    --scope "${APP_SECRET_SCOPE}" \
+    --key "persona_issuer" \
+    --string-value "${issuer_url}"
+  ok "Persona issuer secret set: ${issuer_url}"
+}
+
+# --------------------------------------------------------------------------- #
 # resolve_app_name
 # --------------------------------------------------------------------------- #
 resolve_app_name() {
@@ -812,20 +831,13 @@ fi
 if [[ "${DEPLOY_APP}" == true ]]; then
   build_app_deploy_args
   if [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
-    PERSONA_ISSUER=$(resolve_persona_issuer)
-    if [[ -z "${PERSONA_ISSUER}" ]]; then
-      fail "Could not resolve persona_issuer from bundle summary. Aborting."
-    fi
-    trap restore_app_yaml EXIT
-    patch_app_yaml "${PERSONA_ISSUER}"
+    resolve_app_bundle_vars
+    write_persona_issuer_secret
   fi
   if [[ ${#APP_DEPLOY_ARGS[@]} -gt 0 ]]; then
     deploy_bundle "${APP_BUNDLE}" "${APP_DEPLOY_ARGS[@]}"
   else
     deploy_bundle "${APP_BUNDLE}"
-  fi
-  if [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
-    restore_app_yaml
   fi
 fi
 
