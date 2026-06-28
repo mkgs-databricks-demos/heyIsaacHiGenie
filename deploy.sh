@@ -659,15 +659,13 @@ write_persona_issuer_secret() {
 
   log "Writing app_url to scope ${APP_SECRET_SCOPE}"
   databricks secrets put-secret \
-    --scope "${APP_SECRET_SCOPE}" \
-    --key "app_url" \
+    "${APP_SECRET_SCOPE}" "app_url" \
     --string-value "${app_url}"
   ok "App URL secret set: ${app_url}"
 
   log "Writing persona_issuer to scope ${APP_SECRET_SCOPE}"
   databricks secrets put-secret \
-    --scope "${APP_SECRET_SCOPE}" \
-    --key "persona_issuer" \
+    "${APP_SECRET_SCOPE}" "persona_issuer" \
     --string-value "${issuer_url}"
   ok "Persona issuer secret set: ${issuer_url}"
 }
