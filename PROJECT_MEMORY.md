@@ -107,7 +107,7 @@ databricks auth login --host https://fevm-hls-fde.cloud.databricks.com
 ./deploy.sh --target dev --infra
 
 # 3. Provision the persona token signing key (admin step)
-databricks secrets put-secret hi_genie_credentials jwt_signing_key \
+databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key \
   --string-value "$(openssl rand -base64 64)"
 
 # 4. Deploy app + run bootstrap (stores workspace_url, validates jwt_signing_key)
@@ -163,7 +163,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 |---|---|
 | `catalog` | `hls_fde_dev` |
 | `schema` | `hi_genie` |
-| `secret_scope_name` | `hi_genie_credentials` |
+| `secret_scope_name` | `hi_genie_dev_credentials` |
 | `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
 | `run_as_user` | `matthew.giglia@databricks.com` |
 
@@ -180,7 +180,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 
 ---
 
-## Secret Scope (`hi_genie_credentials`)
+## Secret Scopes (`hi_genie_dev_credentials`, `hi_genie_staging_credentials`)
 
 ### Auto-provisioned by `platform_bootstrap` job
 | Key | Value |
@@ -190,7 +190,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 ### Admin-provisioned (manual)
 | Key | How to provision |
 |---|---|
-| `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret hi_genie_credentials jwt_signing_key --string-value <value>` |
+| `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key --string-value <value>` |
 | `github_client_id` | GitHub OAuth App client ID — Phase 5, not needed for spike |
 | `github_client_secret` | GitHub OAuth App client secret — Phase 5, not needed for spike |
 
@@ -286,7 +286,7 @@ production hardening.
 
 | # | Area | Gap | Action |
 |---|------|-----|--------|
-| S1 | Persona token | `HI_GENIE_PERSONA_ISSUER` ships as `""` in `app.yaml`. JWT validation will reject all tokens until this is set. | After first deploy, set the env var (or secret) to the live app URL (e.g. `https://<app-url>/token/persona`). |
+| S1 | Persona token | Closed by bundle-level `persona_issuer` and `deploy.sh` app.yaml placeholder injection. | Keep `HI_GENIE_PERSONA_ISSUER` as `__PERSONA_ISSUER_PLACEHOLDER__` in git; deploy.sh patches it before app bundle deploy and restores it after. |
 | S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
 | S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
 | S4 | DCR persistence | Client registry is in-memory (`Map`). Restarts lose all registered clients. | Move to a Lakebase `dcr_clients` table. Already noted in architecture docs. |
@@ -304,4 +304,4 @@ production hardening.
 | # | Area | Gap | Action |
 |---|------|-----|--------|
 | O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
-| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in scope `hi_genie_credentials` are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret hi_genie_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret`. |
+| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in target-specific scope (`hi_genie_dev_credentials` for dev, `hi_genie_staging_credentials` for staging) are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret hi_genie_dev_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret` (or use the staging scope for staging). |

@@ -20,8 +20,9 @@
 #
 # First deployment:
 #   1. ./deploy.sh --target dev --infra
-#   2. Provision jwt_signing_key manually:
-#        databricks secrets put-secret hi_genie_credentials jwt_signing_key \
+#   2. Provision jwt_signing_key manually in the target-specific scope
+#      (dev: hi_genie_dev_credentials, staging: hi_genie_staging_credentials):
+#        databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key \
 #          --string-value "$(openssl rand -base64 64)"
 #   3. ./deploy.sh --target dev --run-setup   (runs bootstrap, then app)
 #
@@ -241,6 +242,60 @@ deploy_bundle() {
 }
 
 # --------------------------------------------------------------------------- #
+# resolve_persona_issuer — read resolved AI bundle persona_issuer variable
+# --------------------------------------------------------------------------- #
+resolve_persona_issuer() {
+  local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
+
+  (cd_bundle "${bundle_dir}" && databricks bundle summary \
+    --target "${TARGET}" \
+    "${APP_DEPLOY_ARGS[@]}" \
+    --output json 2>/dev/null | python3 -c "
+import json, sys
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print('', end='')
+    sys.exit(0)
+
+variables = data.get('variables', {})
+issuer = variables.get('persona_issuer', {}).get('value', '')
+print(issuer, end='')
+") || true
+}
+
+# --------------------------------------------------------------------------- #
+# patch_app_yaml / restore_app_yaml — inject runtime app.yaml-only values
+# --------------------------------------------------------------------------- #
+patch_app_yaml() {
+  local issuer="$1"
+  local app_yaml="${SCRIPT_DIR}/${APP_BUNDLE}/app.yaml"
+
+  cp "${app_yaml}" "${app_yaml}.deploy_bak"
+  python3 - "${app_yaml}" "${issuer}" <<'PY'
+import sys
+from pathlib import Path
+
+app_yaml = Path(sys.argv[1])
+issuer = sys.argv[2]
+placeholder = '__PERSONA_ISSUER_PLACEHOLDER__'
+
+content = app_yaml.read_text()
+if placeholder not in content:
+    raise SystemExit(f'{placeholder} not found in {app_yaml}')
+app_yaml.write_text(content.replace(placeholder, issuer))
+PY
+}
+
+restore_app_yaml() {
+  local app_yaml="${SCRIPT_DIR}/${APP_BUNDLE}/app.yaml"
+  if [[ -f "${app_yaml}.deploy_bak" ]]; then
+    mv "${app_yaml}.deploy_bak" "${app_yaml}"
+  fi
+}
+
+# --------------------------------------------------------------------------- #
 # resolve_infra_vars — extract scope, catalog, schema, lakebase ID from summary
 # --------------------------------------------------------------------------- #
 resolve_infra_vars() {
@@ -264,7 +319,7 @@ def get_var(name, default=''):
     v = vars_block.get(name, {})
     return v.get('value', default) if isinstance(v, dict) else (str(v) if v else default)
 
-scope = get_var('secret_scope_name', 'hi_genie_credentials')
+scope = get_var('secret_scope_name')
 
 resources = data.get('resources', {})
 
@@ -756,10 +811,21 @@ fi
 
 if [[ "${DEPLOY_APP}" == true ]]; then
   build_app_deploy_args
+  if [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
+    PERSONA_ISSUER=$(resolve_persona_issuer)
+    if [[ -z "${PERSONA_ISSUER}" ]]; then
+      fail "Could not resolve persona_issuer from bundle summary. Aborting."
+    fi
+    trap restore_app_yaml EXIT
+    patch_app_yaml "${PERSONA_ISSUER}"
+  fi
   if [[ ${#APP_DEPLOY_ARGS[@]} -gt 0 ]]; then
     deploy_bundle "${APP_BUNDLE}" "${APP_DEPLOY_ARGS[@]}"
   else
     deploy_bundle "${APP_BUNDLE}"
+  fi
+  if [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
+    restore_app_yaml
   fi
 fi
 
