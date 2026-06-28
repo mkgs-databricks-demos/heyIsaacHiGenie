@@ -6,5 +6,5 @@ export default defineConfig({
   outDir: 'build',
   dts: false,
   clean: true,
-  external: ['@databricks/appkit'],
+  external: ['@ast-grep/napi-linux-x64-gnu', '@ast-grep/napi-linux-x64-musl'],
 });
