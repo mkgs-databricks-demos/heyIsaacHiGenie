@@ -11,7 +11,7 @@ resources:
       tasks:
         - task_key: validate
           notebook_task:
-            notebook_path: ./src/notebooks/post_deploy_validation
+            notebook_path: ../src/notebooks/post_deploy_validation.py
             base_parameters:
               app_name: ${var.app_name}
           environment_key: serverless
