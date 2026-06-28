@@ -17,7 +17,7 @@ resources:
       tasks:
         - task_key: bootstrap
           notebook_task:
-            notebook_path: ./src/notebooks/platform_bootstrap
+            notebook_path: ../src/notebooks/platform_bootstrap.py
             base_parameters:
               secret_scope_name: ${var.secret_scope_name}
           environment_key: serverless

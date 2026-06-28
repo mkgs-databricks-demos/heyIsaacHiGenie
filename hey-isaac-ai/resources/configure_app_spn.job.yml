@@ -14,7 +14,7 @@ resources:
       tasks:
         - task_key: configure_spn
           notebook_task:
-            notebook_path: ./src/notebooks/configure_app_spn
+            notebook_path: ../src/notebooks/configure_app_spn.py
             base_parameters:
               principal: "{{job.parameters.principal}}"
               secret_scope_name: ${var.secret_scope_name}
