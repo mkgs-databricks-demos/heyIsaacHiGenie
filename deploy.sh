@@ -252,7 +252,11 @@ resolve_infra_vars() {
   log "Resolving infrastructure variables (target: ${TARGET})"
 
   local summary_json
-  summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary --target "${TARGET}" --output json 2>/dev/null) || \
+  local summary_extra_args=()
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    summary_extra_args+=(--var "user_handle=${USER_HANDLE}")
+  fi
+  summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary --target "${TARGET}" "${summary_extra_args[@]+${summary_extra_args[@]}}" --output json 2>/dev/null) || \
     fail "Could not read bundle summary for ${INFRA_BUNDLE}. Deploy infra first."
 
   eval "$(echo "${summary_json}" | python3 -c "
@@ -815,6 +819,9 @@ fi
 
 if [[ "${DEPLOY_INFRA}" == true ]]; then
   INFRA_DEPLOY_ARGS=()
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
+  fi
   deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
 fi
 
