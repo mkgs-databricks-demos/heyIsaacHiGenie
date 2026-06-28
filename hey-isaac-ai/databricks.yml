@@ -24,7 +24,7 @@ variables:
     description: >
       Lakebase database resource ID (auto-generated on first project deploy).
       Resolved by deploy.sh via: databricks postgres list-databases
-      projects/{project_id}/branches/{branch_id}
+      projects/{project_id}/branches/<branch_id>
     default: ""
   app_name:
     description: >

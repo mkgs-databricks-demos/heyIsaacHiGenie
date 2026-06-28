@@ -402,11 +402,40 @@ ensure_dev_lakebase_branch() {
 
   log "Ensuring Lakebase branch '${branch_id}' in project '${LAKEBASE_PROJECT_ID}'"
 
-  # create-branch is idempotent with --replace-existing
+  # Skip if branch already exists — creation is not idempotent
+  local branches_json branch_exists
+  branches_json=$(databricks postgres list-branches "projects/${LAKEBASE_PROJECT_ID}" --output json 2>/dev/null) || {
+    warn "Could not list Lakebase branches for project '${LAKEBASE_PROJECT_ID}' — skipping branch setup."
+    return 0
+  }
+
+  branch_exists=$(BRANCH_ID="${branch_id}" python3 -c "
+import os, sys, json
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
+branches = data.get('branches', data.get('items', []))
+if isinstance(data, list):
+    branches = data
+branch_id = os.environ['BRANCH_ID']
+for branch in branches:
+    if not isinstance(branch, dict):
+        continue
+    name = branch.get('name', '')
+    candidate = name.split('/branches/')[-1] if '/branches/' in name else name
+    if candidate == branch_id or branch.get('branch_id', '') == branch_id or branch.get('id', '') == branch_id:
+        print('true')
+        sys.exit(0)
+" <<<"${branches_json}" 2>/dev/null) || branch_exists=""
+
+  if [[ "${branch_exists}" == "true" ]]; then
+    ok "Lakebase branch already present: projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}"
+    return 0
+  fi
+
   databricks postgres create-branch \
-    "projects/${LAKEBASE_PROJECT_ID}" "${branch_id}" \
-    --replace-existing \
-    -p fevm-hls-fde 2>&1 || {
+    "projects/${LAKEBASE_PROJECT_ID}" "${branch_id}" 2>&1 || {
     warn "Could not create Lakebase branch '${branch_id}' — it may already exist or still be initialising."
     return 0
   }
@@ -666,6 +695,7 @@ fi
 
 if [[ "${DEPLOY_APP}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
   resolve_infra_vars
+  ensure_dev_lakebase_branch
 fi
 
 if [[ "${RUN_SETUP}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
