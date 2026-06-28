@@ -434,13 +434,60 @@ for branch in branches:
     return 0
   fi
 
-  databricks postgres create-branch \
-    "projects/${LAKEBASE_PROJECT_ID}" "${branch_id}" 2>&1 || {
-    warn "Could not create Lakebase branch '${branch_id}' — it may already exist or still be initialising."
+  # Resolve workspace token for the REST API call
+  local token
+  token=$(databricks auth token --output json 2>/dev/null | python3 -c "
+import sys, json
+try:
+    print(json.load(sys.stdin).get('access_token', ''))
+except: pass
+" 2>/dev/null) || token=""
+
+  [[ -z "${token}" ]] && { warn "Could not resolve auth token — skipping branch setup."; return 0; }
+  [[ -z "${WORKSPACE_HOST}" ]] && { warn "WORKSPACE_HOST not set — skipping branch setup."; return 0; }
+
+  # The CLI strips unknown fields from --json, so we call the REST API directly.
+  # Expiry must be wrapped in {\"spec\": {\"no_expiry\": true}} — confirmed format.
+  local host="${WORKSPACE_HOST%/}"
+  local create_resp
+  create_resp=$(curl -s -X POST \
+    -H "Authorization: Bearer ${token}" \
+    -H "Content-Type: application/json" \
+    "${host}/api/2.0/postgres/projects/${LAKEBASE_PROJECT_ID}/branches?branch_id=${branch_id}" \
+    -d '{"spec": {"no_expiry": true}}' 2>/dev/null) || {
+    warn "Branch creation request failed for '${branch_id}'."
     return 0
   }
 
-  ok "Lakebase branch ready: projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}"
+  local err_code
+  err_code=$(echo "${create_resp}" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('error_code', ''))
+except: pass
+" 2>/dev/null) || err_code=""
+
+  if [[ -n "${err_code}" ]]; then
+    warn "Lakebase branch creation failed (${err_code}) — branch may already exist or project is still initialising."
+    return 0
+  fi
+
+  ok "Lakebase branch created: projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}"
+
+  # Wait until branch reaches READY state (up to 60s)
+  local elapsed=0 interval=5 max_wait=60
+  while [[ ${elapsed} -lt ${max_wait} ]]; do
+    sleep ${interval}; elapsed=$((elapsed + interval))
+    local branch_state
+    branch_state=$(databricks postgres get-branch \
+      "projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}" \
+      --output json 2>/dev/null | \
+      python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',{}).get('current_state',''))" 2>/dev/null) || branch_state=""
+    [[ "${branch_state}" == "READY" ]] && { ok "Lakebase branch READY: ${branch_id}"; return 0; }
+    echo "  [${elapsed}s] branch state: ${branch_state:-unknown}"
+  done
+  warn "Lakebase branch did not reach READY within ${max_wait}s — continuing anyway."
 }
 
 # --------------------------------------------------------------------------- #
