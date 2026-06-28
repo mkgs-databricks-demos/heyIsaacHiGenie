@@ -39,9 +39,16 @@ export async function verifyPersonaToken(
   if (!key) return null;
   try {
     const secret = new TextEncoder().encode(key);
-    const { payload } = await jwtVerify(token, secret, { issuer });
-    const { sub, persona, project_id } = payload as Record<string, unknown>;
-    if (typeof sub !== 'string' || typeof persona !== 'string' || typeof project_id !== 'string') {
+    const audience = process.env.HI_GENIE_PERSONA_AUDIENCE || 'mcp';
+    const { payload } = await jwtVerify(token, secret, { issuer, audience });
+    const { sub, persona, project_id, jti } = payload as Record<string, unknown>;
+    if (
+      typeof sub !== 'string' ||
+      typeof persona !== 'string' ||
+      typeof project_id !== 'string' ||
+      typeof jti !== 'string' ||
+      jti.length === 0
+    ) {
       return null;
     }
     return { sub, persona, project_id };
@@ -61,11 +68,13 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
   const personaToken = req.headers['x-persona-token'];
   if (typeof personaToken === 'string') {
-    const issuer = `${req.protocol}://${req.get('host')}/token/persona`;
-    const claims = await verifyPersonaToken(personaToken, issuer);
-    if (claims && claims.sub === human) {
-      ctx.persona = claims.persona;
-      ctx.project_id = claims.project_id;
+    const issuer = process.env.HI_GENIE_PERSONA_ISSUER;
+    if (issuer) {
+      const claims = await verifyPersonaToken(personaToken, issuer);
+      if (claims && claims.sub === human) {
+        ctx.persona = claims.persona;
+        ctx.project_id = claims.project_id;
+      }
     }
   }
 

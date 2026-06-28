@@ -38,9 +38,9 @@ r = requests.post(f"{app_url}/mcp", json={}, timeout=15)
 assert r.status_code in (200, 401, 400), f"/mcp returned unexpected {r.status_code}: {r.text}"
 print(f"✓ /mcp     →  {r.status_code}")
 
-# DCR endpoint — expect 400 (missing client_name) or 201, not 404/500
+# DCR endpoint — expect 401 (missing shared secret), 400 (missing client_name), or 201, not 404/500
 r = requests.post(f"{app_url}/register", json={}, timeout=15)
-assert r.status_code in (400, 201), f"/register returned unexpected {r.status_code}: {r.text}"
+assert r.status_code in (400, 401, 201), f"/register returned unexpected {r.status_code}: {r.text}"
 print(f"✓ /register →  {r.status_code}")
 
 # COMMAND ----------

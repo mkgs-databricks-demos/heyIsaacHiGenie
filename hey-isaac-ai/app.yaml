@@ -7,6 +7,14 @@ env:
   # Persona token signing (HMAC secret, admin provisioned)
   - name: HI_GENIE_JWT_SIGNING_KEY
     valueFrom: jwt-signing-key
+  - name: HI_GENIE_PERSONA_AUDIENCE
+    value: mcp
+  - name: HI_GENIE_PERSONA_ISSUER
+    value: ""
+
+  # Dynamic Client Registration shared secret (admin provisioned)
+  - name: HI_GENIE_DCR_SHARED_SECRET
+    valueFrom: dcr-shared-secret
 
   # GitHub OAuth App — for external agent (Isaac) auth, Phase 5
   - name: HI_GENIE_GITHUB_CLIENT_ID

@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // One McpServer per request (stateless for spike).
 // Each server gets the auth context injected at construction time.
@@ -36,7 +44,7 @@ function buildMcpServer(human: string, persona?: string, project_id?: string) {
 export function mcpRouter() {
   const router = Router();
 
-  router.post('/', authMiddleware, async (req, res) => {
+  router.post('/', limiter, authMiddleware, async (req, res) => {
     const { human, persona, project_id } = req.ctx!;
     const server = buildMcpServer(human, persona, project_id);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
