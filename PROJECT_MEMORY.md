@@ -304,3 +304,4 @@ production hardening.
 | # | Area | Gap | Action |
 |---|------|-----|--------|
 | O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
+| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in scope `hi_genie_credentials` are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret hi_genie_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret`. |
