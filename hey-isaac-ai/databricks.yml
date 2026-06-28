@@ -37,6 +37,13 @@ variables:
     default: ""
   run_as_user:
     description: The user or service principal that jobs run as.
+    default: ${workspace.current_user.userName}
+  user_handle:
+    description: >
+      Deploying user's handle (e.g. matthew_giglia) — email prefix with dots
+      replaced by underscores. Injected automatically by deploy.sh for the dev
+      target. Do not set manually.
+    default: ""
   higher_level_service_principal:
     description: Service principal application ID for non-dev deployments.
     default: ""
@@ -67,13 +74,12 @@ targets:
         env: ${bundle.target}
     workspace:
       host: https://fevm-hls-fde.cloud.databricks.com
-      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: hls_fde_dev
-      # DABs development mode prefixes schema with dev_<user>_ automatically
-      schema: dev_matthew_giglia_hi_genie
-      lakebase_project_id: dev-matthew-giglia-hi-genie
+      schema: dev_${var.user_handle}_hi_genie
+      lakebase_project_id: dev-${var.user_handle}-hi-genie
       # lakebase_database_id: resolved by deploy.sh --var at deploy time
       lakebase_database_id: ""
-      run_as_user: matthew.giglia@databricks.com
+      # prod targets should explicitly set run_as_user to a service principal
       app_name: hey-isaac-hi-genie-dev
