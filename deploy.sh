@@ -204,7 +204,7 @@ resolve_user_handle() {
   }
   USER_HANDLE=$(echo "${user_json}" | python3 -c "
 import sys, json, re
-u = json.load(sys.stdin).get('user_name', '')
+u = json.load(sys.stdin).get('userName', '')
 handle = u.split('@')[0]
 handle = re.sub(r'[^a-zA-Z0-9]', '_', handle)
 print(handle)
