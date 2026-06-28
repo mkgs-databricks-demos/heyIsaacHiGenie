@@ -319,12 +319,16 @@ print(f'WORKSPACE_HOST=\"{safe_u(workspace_host)}\"')
 resolve_lakebase_database() {
   local project_id="${LAKEBASE_PROJECT_ID:-}"
   [[ -z "${project_id}" ]] && { warn "No Lakebase project ID — skipping database ID resolution."; return 0; }
+  local branch_id="production"
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    branch_id="dev-${USER_HANDLE//_/-}"
+  fi
 
-  log "Resolving Lakebase database ID (project: ${project_id})"
+  log "Resolving Lakebase database ID (project: ${project_id}, branch: ${branch_id})"
 
   local db_json
-  db_json=$(databricks postgres list-databases "projects/${project_id}/branches/production" --output json 2>/dev/null) || {
-    warn "Could not list databases for project '${project_id}' — may still be initializing."; return 0;
+  db_json=$(databricks postgres list-databases "projects/${project_id}/branches/${branch_id}" --output json 2>/dev/null) || {
+    warn "Could not list databases for project '${project_id}' branch '${branch_id}' — may still be initializing."; return 0;
   }
 
   LAKEBASE_DATABASE_ID=$(echo "${db_json}" | python3 -c "
@@ -366,19 +370,48 @@ run_platform_bootstrap() {
 check_lakebase_status() {
   local project_id="${LAKEBASE_PROJECT_ID:-}"
   [[ -z "${project_id}" ]] && return 0
+  local branch_id="production"
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    branch_id="dev-${USER_HANDLE//_/-}"
+  fi
 
-  log "Checking Lakebase project status (project: ${project_id})"
+  log "Checking Lakebase project status (project: ${project_id}, branch: ${branch_id})"
 
   databricks postgres get-project "projects/${project_id}" --output json >/dev/null 2>&1 && \
     ok "Lakebase project accessible: ${project_id}" || \
     { warn "Lakebase project '${project_id}' not found — may still be initializing."; return 0; }
 
   local ep_count
-  ep_count=$(databricks postgres list-endpoints "projects/${project_id}/branches/production" --output json 2>/dev/null | \
+  ep_count=$(databricks postgres list-endpoints "projects/${project_id}/branches/${branch_id}" --output json 2>/dev/null | \
     python3 -c "import sys,json; data=json.load(sys.stdin); eps=data.get('endpoints',data.get('items',[])); print(len(eps) if isinstance(eps,list) else 0)" 2>/dev/null) || ep_count=0
 
   [[ "${ep_count:-0}" -gt 0 ]] && ok "Lakebase endpoint active (${ep_count} endpoint(s))" || \
     warn "No active Lakebase endpoint found — may still be initializing."
+}
+
+# --------------------------------------------------------------------------- #
+# ensure_dev_lakebase_branch — create per-developer branch in shared dev project
+# --------------------------------------------------------------------------- #
+ensure_dev_lakebase_branch() {
+  [[ "${TARGET}" != "dev" ]] && return 0
+  [[ -z "${LAKEBASE_PROJECT_ID}" ]] && { warn "No Lakebase project ID — skipping branch setup."; return 0; }
+  [[ -z "${USER_HANDLE}" ]] && { warn "No user handle — skipping branch setup."; return 0; }
+
+  # Branch IDs use hyphens only (Lakebase name rule: ^[a-z][a-z0-9-]*$)
+  local branch_id="dev-${USER_HANDLE//_/-}"
+
+  log "Ensuring Lakebase branch '${branch_id}' in project '${LAKEBASE_PROJECT_ID}'"
+
+  # create-branch is idempotent with --replace-existing
+  databricks postgres create-branch \
+    "projects/${LAKEBASE_PROJECT_ID}" "${branch_id}" \
+    --replace-existing \
+    -p fevm-hls-fde 2>&1 || {
+    warn "Could not create Lakebase branch '${branch_id}' — it may already exist or still be initialising."
+    return 0
+  }
+
+  ok "Lakebase branch ready: projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}"
 }
 
 # --------------------------------------------------------------------------- #
@@ -616,17 +649,19 @@ resolve_user_handle
 
 if [[ "${TARGET}" == "dev" ]] && [[ -z "${USER_HANDLE}" ]]; then
   warn "User handle could not be resolved."
-  warn "Computed lakebase_project_id would be: dev--hi-genie (MALFORMED)"
+  warn "Shared lakebase_project_id will be: dev-hi-genie"
   warn "Computed schema would be: dev__hi_genie (MALFORMED)"
   fail "Cannot deploy to dev with empty user_handle. Authenticate with 'databricks auth login' and retry."
 fi
 
 if [[ "${DEPLOY_INFRA}" == true ]]; then
   INFRA_DEPLOY_ARGS=()
-  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
-    INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
-  fi
   deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
+fi
+
+if [[ "${DEPLOY_INFRA}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]] && [[ "${TARGET}" == "dev" ]]; then
+  resolve_infra_vars  # need LAKEBASE_PROJECT_ID
+  ensure_dev_lakebase_branch
 fi
 
 if [[ "${DEPLOY_APP}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
