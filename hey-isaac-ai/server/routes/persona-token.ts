@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { SignJWT } from 'jose';
 import { z } from 'zod';
 import { extractOboIdentity } from '../middleware/auth.js';
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const IssueSchema = z.object({
   persona: z.string().min(1).describe('Agent nickname (e.g. "Isaac", "Genie")'),
@@ -15,7 +23,7 @@ export function personaTokenRouter() {
   // POST /token/persona
   // Requires OBO identity (Databricks-injected headers).
   // Returns a signed JWT the agent attaches as X-Persona-Token on MCP calls.
-  router.post('/persona', async (req, res) => {
+  router.post('/persona', limiter, async (req, res) => {
     const human = extractOboIdentity(req);
     if (!human) {
       res.status(401).json({

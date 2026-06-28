@@ -1,5 +1,13 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // In-memory client registry — spike only.
 // Production: move registrations to Lakebase (dcr_clients table).
@@ -10,7 +18,7 @@ export function dcrRouter() {
 
   // RFC 7591 — Dynamic Client Registration endpoint.
   // Databricks calls this when auto-registering the UC HTTP connection.
-  router.post('/', (req, res) => {
+  router.post('/', limiter, (req, res) => {
     const configured = process.env.HI_GENIE_DCR_SHARED_SECRET;
     const provided = req.header('x-dcr-shared-secret');
     if (!configured || provided !== configured) {
@@ -53,7 +61,7 @@ export function dcrRouter() {
   });
 
   // Lookup for token endpoint validation (used internally)
-  router.get('/:client_id', (req, res) => {
+  router.get('/:client_id', limiter, (req, res) => {
     const entry = registry.get(req.params.client_id);
     if (!entry) {
       res.status(404).json({ error: 'not_found' });
