@@ -6,5 +6,6 @@ export default defineConfig({
   outDir: 'build',
   dts: false,
   clean: true,
+  minify: true,
   external: ['@ast-grep/napi-linux-x64-gnu', '@ast-grep/napi-linux-x64-musl'],
 });
