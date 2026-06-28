@@ -18,7 +18,7 @@ w = WorkspaceClient()
 
 # Store workspace URL (auto-provisioned)
 workspace_url = spark.conf.get("spark.databricks.workspaceUrl")  # type: ignore[name-defined]
-w.secrets.put(scope=scope, key="workspace_url", string_value=f"https://{workspace_url}")
+w.secrets.put_secret(scope=scope, key="workspace_url", string_value=f"https://{workspace_url}")
 print(f"✓ workspace_url stored: https://{workspace_url}")
 
 # COMMAND ----------
