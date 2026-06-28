@@ -43,7 +43,7 @@ variables:
     default: hey-isaac-hi-genie
     description: Project tag for deployed resources.
   tags_developer:
-    default: matthew.giglia@databricks.com
+    default: ""
     description: Primary developer contact.
   tags_RemoveAfter:
     default: 2027-06-30

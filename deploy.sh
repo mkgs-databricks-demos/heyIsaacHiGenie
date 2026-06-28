@@ -614,6 +614,13 @@ echo "  Destroy:         ${DESTROY}"
 
 resolve_user_handle
 
+if [[ "${TARGET}" == "dev" ]] && [[ -z "${USER_HANDLE}" ]]; then
+  warn "User handle could not be resolved."
+  warn "Computed lakebase_project_id would be: dev--hi-genie (MALFORMED)"
+  warn "Computed schema would be: dev__hi_genie (MALFORMED)"
+  fail "Cannot deploy to dev with empty user_handle. Authenticate with 'databricks auth login' and retry."
+fi
+
 if [[ "${DEPLOY_INFRA}" == true ]]; then
   INFRA_DEPLOY_ARGS=()
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then

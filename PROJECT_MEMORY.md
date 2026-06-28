@@ -164,19 +164,19 @@ cd hey-isaac-ai && npm install && npm run typecheck
 | `catalog` | `hls_fde_dev` |
 | `schema` | `hi_genie` |
 | `secret_scope_name` | `hi_genie_credentials` |
-| `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
-| `run_as_user` | `matthew.giglia@databricks.com` |
+| `lakebase_project_id` | `dev-${var.user_handle}-hi-genie` (injected by `deploy.sh`) |
+| `run_as_user` | `${workspace.current_user.userName}` (DABs built-in, auto-resolved) |
 
 ### hey-isaac-ai dev target
 
 | Variable | Value |
 |---|---|
 | `catalog` | `hls_fde_dev` |
-| `schema` | `dev_matthew_giglia_hi_genie` (DABs dev-mode prefix applied) |
-| `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
+| `schema` | `dev_${var.user_handle}_hi_genie` (injected by `deploy.sh`) |
+| `lakebase_project_id` | `dev-${var.user_handle}-hi-genie` (injected by `deploy.sh`) |
 | `lakebase_database_id` | `""` — resolved by `deploy.sh` at deploy time via `--var` |
 | `app_name` | `hey-isaac-hi-genie-dev` |
-| `run_as_user` | `matthew.giglia@databricks.com` |
+| `run_as_user` | `${workspace.current_user.userName}` (DABs built-in, auto-resolved) |
 
 ---
 
