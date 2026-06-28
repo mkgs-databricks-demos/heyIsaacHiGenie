@@ -76,6 +76,7 @@ SCOPE_NAME=""
 CATALOG=""
 SCHEMA=""
 LAKEBASE_PROJECT_ID=""
+LAKEBASE_BRANCH_ID=""
 LAKEBASE_DATABASE_ID=""
 WORKSPACE_HOST=""
 APP_NAME=""
@@ -328,9 +329,11 @@ print(f'WORKSPACE_HOST=\"{safe_u(workspace_host)}\"')
 resolve_lakebase_database() {
   local project_id="${LAKEBASE_PROJECT_ID:-}"
   [[ -z "${project_id}" ]] && { warn "No Lakebase project ID — skipping database ID resolution."; return 0; }
+  LAKEBASE_BRANCH_ID="production"
   local branch_id="production"
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
     branch_id="dev-${USER_HANDLE//_/-}"
+    LAKEBASE_BRANCH_ID="${branch_id}"
   fi
 
   log "Resolving Lakebase database ID (project: ${project_id}, branch: ${branch_id})"
@@ -577,6 +580,7 @@ build_app_deploy_args() {
   APP_DEPLOY_ARGS=()
   # lakebase_database_id is discovered at runtime (not known at YAML-write time)
   [[ -n "${LAKEBASE_DATABASE_ID}" ]] && APP_DEPLOY_ARGS+=(--var "lakebase_database_id=${LAKEBASE_DATABASE_ID}")
+  [[ -n "${LAKEBASE_BRANCH_ID}" ]] && APP_DEPLOY_ARGS+=(--var "lakebase_branch_id=${LAKEBASE_BRANCH_ID}")
   [[ -n "${SCHEMA}" ]] && APP_DEPLOY_ARGS+=(--var "schema=${SCHEMA}")
   # Inject user_handle for dev target
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
