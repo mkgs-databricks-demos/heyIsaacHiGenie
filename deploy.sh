@@ -79,6 +79,7 @@ WORKSPACE_HOST=""
 APP_NAME=""
 APP_SOURCE_PATH=""
 APP_SPN_CLIENT_ID=""
+USER_HANDLE=""
 
 # --------------------------------------------------------------------------- #
 # Defaults
@@ -186,6 +187,26 @@ cd_bundle() {
 # --------------------------------------------------------------------------- #
 command -v databricks &>/dev/null || fail "Databricks CLI not found."
 command -v python3    &>/dev/null || fail "python3 not found."
+
+# --------------------------------------------------------------------------- #
+# resolve_user_handle — derive user_handle from CLI profile for dev target
+# --------------------------------------------------------------------------- #
+resolve_user_handle() {
+  [[ "${TARGET}" != "dev" ]] && return 0
+  local user_json
+  user_json=$(databricks current-user me --output json 2>/dev/null) || {
+    warn "Could not resolve current user — user_handle not injected."
+    return 0
+  }
+  USER_HANDLE=$(echo "${user_json}" | python3 -c "
+import sys, json, re
+u = json.load(sys.stdin).get('user_name', '')
+handle = u.split('@')[0]
+handle = re.sub(r'[^a-zA-Z0-9]', '_', handle)
+print(handle)
+" 2>/dev/null) || USER_HANDLE=""
+  [[ -n "${USER_HANDLE}" ]] && ok "User handle: ${USER_HANDLE}" || warn "Could not derive user handle."
+}
 
 # --------------------------------------------------------------------------- #
 # deploy_bundle
@@ -438,6 +459,10 @@ build_app_deploy_args() {
   APP_DEPLOY_ARGS=()
   # lakebase_database_id is discovered at runtime (not known at YAML-write time)
   [[ -n "${LAKEBASE_DATABASE_ID}" ]] && APP_DEPLOY_ARGS+=(--var "lakebase_database_id=${LAKEBASE_DATABASE_ID}")
+  # Inject user_handle for dev target
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    APP_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
+  fi
 
   if [[ ${#APP_DEPLOY_ARGS[@]} -gt 0 ]]; then
     log "App bundle --var overrides:"
@@ -587,8 +612,14 @@ echo "  Skip validation: ${SKIP_VALIDATION}"
 echo "  Validate only:   ${VALIDATE_ONLY}"
 echo "  Destroy:         ${DESTROY}"
 
+resolve_user_handle
+
 if [[ "${DEPLOY_INFRA}" == true ]]; then
-  deploy_bundle "${INFRA_BUNDLE}"
+  INFRA_DEPLOY_ARGS=()
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
+  fi
+  deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
 fi
 
 if [[ "${DEPLOY_APP}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
