@@ -21,8 +21,8 @@
 # First deployment:
 #   1. ./deploy.sh --target dev --infra
 #   2. Provision jwt_signing_key manually in the target-specific scope
-#      (dev: hi_genie_dev_credentials, staging: hi_genie_staging_credentials):
-#        databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key \
+#      (dev: dev_<user_handle>_hi_genie_credentials, staging: hi_genie_staging_credentials):
+#        databricks secrets put-secret dev_<user_handle>_hi_genie_credentials jwt_signing_key \
 #          --string-value "$(openssl rand -base64 64)"
 #   3. ./deploy.sh --target dev --run-setup   (runs bootstrap, then app)
 #
