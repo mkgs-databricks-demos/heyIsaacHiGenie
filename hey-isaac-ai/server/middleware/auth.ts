@@ -15,19 +15,59 @@ declare global {
   }
 }
 
-// Databricks Apps inject the authenticated user's email into request headers.
-// The exact header name needs to be confirmed during the spike.
+// Numeric-user-ID format injected by Databricks Apps proxy for direct API token auth
+// Format: "1081964970114387@7474657291520070" (user_id@workspace_id)
+const NUMERIC_USER_ID_RE = /^\d+@\d+$/;
+
+function isNumericUserId(value: string): boolean {
+  return NUMERIC_USER_ID_RE.test(value);
+}
+
+function extractSubFromJwt(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
+    ) as Record<string, unknown>;
+    const sub = payload['sub'];
+    if (typeof sub === 'string' && sub.length > 0 && !isNumericUserId(sub)) {
+      return sub;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const OBO_HEADER_CANDIDATES = [
-  'x-forwarded-user',
-  'x-databricks-user-email',
-  'x-ms-client-principal-name',
+  'x-forwarded-email',          // Databricks Apps OIDC cookie flow — injects email directly
+  'x-databricks-user-email',    // Alternative Databricks header
+  'x-ms-client-principal-name', // Azure Static Web Apps (fallback)
+  'x-forwarded-user',           // Databricks Apps direct API — injects numeric user ID format
 ] as const;
 
 export function extractOboIdentity(req: Request): string | null {
+  // First try: decode the OBO access token sub claim (most reliable email source)
+  const oboToken = req.headers['x-forwarded-access-token'];
+  if (typeof oboToken === 'string' && oboToken.length > 0) {
+    const email = extractSubFromJwt(oboToken);
+    if (email) return email;
+  }
+
+  // Second try: header-based extraction in priority order
   for (const header of OBO_HEADER_CANDIDATES) {
     const val = req.headers[header];
-    if (typeof val === 'string' && val.length > 0) return val;
+    if (typeof val === 'string' && val.length > 0) {
+      if (isNumericUserId(val)) continue;
+      return val;
+    }
   }
+
+  // Final fallback: accept numeric user ID if nothing better exists
+  const forwardedUser = req.headers['x-forwarded-user'];
+  if (typeof forwardedUser === 'string' && forwardedUser.length > 0) return forwardedUser;
+
   return null;
 }
 
