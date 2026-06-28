@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { SignJWT } from 'jose';
 import { z } from 'zod';
@@ -41,16 +42,29 @@ export function personaTokenRouter() {
 
     const { persona, project_id } = parsed.data;
     const secret = new TextEncoder().encode(key);
-    const issuer = `${req.protocol}://${req.get('host')}/token/persona`;
+    const issuer = process.env.HI_GENIE_PERSONA_ISSUER || '';
+    if (!issuer) {
+      res.status(503).json({
+        error: 'not_configured',
+        message: 'Persona token issuer not configured — set HI_GENIE_PERSONA_ISSUER',
+      });
+      return;
+    }
+    const audience = process.env.HI_GENIE_PERSONA_AUDIENCE || 'mcp';
+    const jti = randomUUID();
 
     const token = await new SignJWT({ sub: human, persona, project_id })
       .setProtectedHeader({ alg: 'HS256' })
+      .setJti(jti)
+      .setAudience(audience)
       .setIssuedAt()
       .setExpirationTime('1h')
       .setIssuer(issuer)
       .sign(secret);
 
-    console.log(`[persona-token] issued: human=${human} persona=${persona} project=${project_id}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[persona-token] issued: human=${human} persona=${persona} project=${project_id}`);
+    }
 
     res.json({
       token,
