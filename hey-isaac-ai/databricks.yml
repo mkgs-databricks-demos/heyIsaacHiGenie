@@ -87,7 +87,6 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: hls_fde_dev
-      schema: dev_${var.user_handle}_hi_genie
       lakebase_project_id: dev-hi-genie
       workspace_id: "7474657291520070"
       cloud: aws
@@ -102,7 +101,6 @@ targets:
       host: https://fevm-hls-fde.cloud.databricks.com
     variables:
       catalog: hls_fde_staging
-      schema: hi_genie
       lakebase_project_id: hi-genie          # production Lakebase project
       app_name: hey-isaac-hi-genie-staging
       workspace_id: "7474657291520070"
