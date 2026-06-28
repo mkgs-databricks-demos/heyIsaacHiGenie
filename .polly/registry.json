@@ -6,7 +6,7 @@
       "branch": "polly/dabs-parameterization",
       "worktree": ".worktrees/dabs-parameterization",
       "agent": "claude_code",
-      "status": "ready-to-merge",
+      "status": "merged",
       "conversation_id": "conv_d01c0896c9d84250910bddbb3ca392a8",
       "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/1",
       "reviewer": "pi",
@@ -29,9 +29,10 @@
       "branch": "polly/auth-security-hardening",
       "agent": "codex",
       "worktree": ".worktrees/auth-security-hardening",
-      "status": "ready-to-merge",
+      "status": "superseded",
       "conversation_id": "conv_00d08fbe62514625bbac11f01323bfa1",
       "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/2",
+      "note": "Superseded by polly/auth-security-hardening-rebased (PR #4)",
       "reviewer": "claude_code",
       "review_verdict": "PASS",
       "files": [
@@ -49,6 +50,30 @@
         "Consider timing-safe comparison for DCR shared-secret (crypto.timingSafeEqual) — Phase 2",
         "Log/warn when persona token is presented but issuer is unconfigured — Phase 2"
       ]
+    },
+    {
+      "id": "fix-express-types",
+      "title": "chore(deps): @types/express + TSX imports",
+      "branch": "polly/fix-express-types",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/3"
+    },
+    {
+      "id": "auth-security-hardening-rebased",
+      "title": "fix(auth): spike-grade security hardening (rebased)",
+      "branch": "polly/auth-security-hardening-rebased",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/4"
+    },
+    {
+      "id": "tsconfig-allow-ts-extensions",
+      "title": "chore(tsconfig): add allowImportingTsExtensions",
+      "branch": "polly/tsconfig-allow-ts-extensions",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/5"
     }
   ]
 }

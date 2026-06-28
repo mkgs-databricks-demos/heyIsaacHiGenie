@@ -1,2 +1,5 @@
 # Claude Code machine-local settings (per-developer, not shared)
 .claude/settings.local.json
+
+# Local git worktrees
+.worktrees/
