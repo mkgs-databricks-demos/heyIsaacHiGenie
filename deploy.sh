@@ -626,9 +626,12 @@ for _, app in data.get('resources', {}).get('apps', {}).items():
 if not app_name: app_name = get_var('app_name')
 
 print(f'APP_NAME=\"{safe(app_name)}\"')
-print(f'APP_WORKSPACE_ID=\"{safe(get_var("workspace_id"))}\"')
-print(f'APP_CLOUD=\"{safe(get_var("cloud"))}\"')
-print(f'APP_SECRET_SCOPE=\"{safe(get_var("secret_scope_name"))}\"')
+_ws_id = get_var('workspace_id')
+_cloud_v = get_var('cloud')
+_sscope = get_var('secret_scope_name')
+print(f'APP_WORKSPACE_ID=\"{safe(_ws_id)}\"')
+print(f'APP_CLOUD=\"{safe(_cloud_v)}\"')
+print(f'APP_SECRET_SCOPE=\"{safe(_sscope)}\"')
 ")" || fail "Could not parse app bundle summary."
 
   [[ -n "${RESOLVE_ERROR:-}" ]]    && fail "App bundle summary parse error: ${RESOLVE_ERROR}"
