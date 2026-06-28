@@ -22,6 +22,6 @@ resources:
       environments:
         - environment_key: serverless
           spec:
-            client: "${var.serverless_environment_version}"
+            environment_version: "${var.serverless_environment_version}"
       run_as:
         user_name: ${var.run_as_user}
