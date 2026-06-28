@@ -164,19 +164,19 @@ cd hey-isaac-ai && npm install && npm run typecheck
 | `catalog` | `hls_fde_dev` |
 | `schema` | `hi_genie` |
 | `secret_scope_name` | `hi_genie_credentials` |
-| `lakebase_project_id` | `dev-${var.user_handle}-hi-genie` (injected by `deploy.sh`) |
-| `run_as_user` | `${workspace.current_user.userName}` (DABs built-in, auto-resolved) |
+| `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
+| `run_as_user` | `matthew.giglia@databricks.com` |
 
 ### hey-isaac-ai dev target
 
 | Variable | Value |
 |---|---|
 | `catalog` | `hls_fde_dev` |
-| `schema` | `dev_${var.user_handle}_hi_genie` (injected by `deploy.sh`) |
-| `lakebase_project_id` | `dev-${var.user_handle}-hi-genie` (injected by `deploy.sh`) |
+| `schema` | `dev_matthew_giglia_hi_genie` (DABs dev-mode prefix applied) |
+| `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
 | `lakebase_database_id` | `""` — resolved by `deploy.sh` at deploy time via `--var` |
 | `app_name` | `hey-isaac-hi-genie-dev` |
-| `run_as_user` | `${workspace.current_user.userName}` (DABs built-in, auto-resolved) |
+| `run_as_user` | `matthew.giglia@databricks.com` |
 
 ---
 
@@ -274,3 +274,33 @@ YAML-write time. `deploy.sh` discovers it via:
 databricks postgres list-databases "projects/${LAKEBASE_PROJECT_ID}/branches/production"
 ```
 and passes it to the app bundle as `--var lakebase_database_id=<id>`.
+
+---
+
+## Known Gaps / Phase 2 Items
+
+These are intentional spike shortcuts, not bugs. Each should be resolved before
+production hardening.
+
+### Auth & Security
+
+| # | Area | Gap | Action |
+|---|------|-----|--------|
+| S1 | Persona token | `HI_GENIE_PERSONA_ISSUER` ships as `""` in `app.yaml`. JWT validation will reject all tokens until this is set. | After first deploy, set the env var (or secret) to the live app URL (e.g. `https://<app-url>/token/persona`). |
+| S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
+| S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
+| S4 | DCR persistence | Client registry is in-memory (`Map`). Restarts lose all registered clients. | Move to a Lakebase `dcr_clients` table. Already noted in architecture docs. |
+
+### Deployment / Infra
+
+| # | Area | Gap | Action |
+|---|------|-----|--------|
+| D1 | Prod `run_as_user` | Both bundles default `run_as_user` to `${workspace.current_user.userName}`. This is correct for dev but wrong for prod. | When a prod target is added, explicitly set `run_as_user` to a service principal in that target's override. |
+| D2 | `user_handle` on prod | `deploy.sh` only injects `--var user_handle=` for the dev target. Prod bundle YAML must not reference `var.user_handle`. | Audit bundle YAML before adding a prod target; remove or conditionalize `user_handle` references. |
+| D3 | `lakebase_database_id` empty-string | If `deploy.sh` fails to resolve the DB ID, it falls back to `""`, which causes a silent misconfiguration. | Add a fail-fast guard in `deploy.sh` mirroring the `user_handle` guard (fail loudly rather than deploy with an empty ID). |
+
+### Ops / Observability
+
+| # | Area | Gap | Action |
+|---|------|-----|--------|
+| O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
