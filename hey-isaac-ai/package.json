@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@databricks/appkit-ui": "^0.36.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
