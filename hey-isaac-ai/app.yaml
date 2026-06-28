@@ -11,6 +11,8 @@ env:
     value: mcp
   - name: HI_GENIE_PERSONA_ISSUER
     valueFrom: persona-issuer
+  - name: HI_GENIE_APP_URL
+    valueFrom: app-url
 
   # Dynamic Client Registration shared secret (admin provisioned)
   - name: HI_GENIE_DCR_SHARED_SECRET

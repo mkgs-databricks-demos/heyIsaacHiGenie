@@ -4,6 +4,7 @@ import { extractOboIdentity } from './middleware/auth.js';
 import { mcpRouter } from './routes/mcp.js';
 import { dcrRouter } from './routes/dcr.js';
 import { personaTokenRouter } from './routes/persona-token.js';
+import { wellKnownRouter } from './routes/well-known.js';
 
 if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
   if (process.env.NODE_ENV === 'development') {
@@ -26,6 +27,10 @@ const AppKit = await createApp({
       // OAuth 2.0 Dynamic Client Registration (RFC 7591)
       // Databricks calls this when auto-registering the UC HTTP connection.
       app.use('/register', dcrRouter());
+
+      // OAuth 2.0 Authorization Server Metadata (RFC 8414)
+      // Databricks discovers the Dynamic Client Registration endpoint here.
+      app.use('/.well-known', wellKnownRouter());
 
       // Persona token issuer — agents call this to get a signed persona JWT
       app.use('/token', personaTokenRouter());
