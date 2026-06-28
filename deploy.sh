@@ -31,6 +31,7 @@
 #   - python3 (for JSON parsing)
 
 set -euo pipefail
+export DATABRICKS_CONFIG_PROFILE="fevm-hls-fde"
 
 # --------------------------------------------------------------------------- #
 # Self-relocation — avoid FUSE filesystem staleness on long-running operations
