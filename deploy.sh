@@ -348,8 +348,8 @@ import sys, json
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError): sys.exit(0)
-dbs = data.get('databases', data.get('items', []))
 if isinstance(data, list): dbs = data
+else: dbs = data.get('databases', data.get('items', []))
 for db in dbs:
     if not isinstance(db, dict): continue
     name = db.get('name', '')
