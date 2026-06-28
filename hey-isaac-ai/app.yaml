@@ -10,7 +10,7 @@ env:
   - name: HI_GENIE_PERSONA_AUDIENCE
     value: mcp
   - name: HI_GENIE_PERSONA_ISSUER
-    value: ""
+    value: "__PERSONA_ISSUER_PLACEHOLDER__"
 
   # Dynamic Client Registration shared secret (admin provisioned)
   - name: HI_GENIE_DCR_SHARED_SECRET

@@ -9,7 +9,7 @@
 
 from databricks.sdk import WorkspaceClient
 
-dbutils.widgets.text("secret_scope_name", "hi_genie_credentials")  # type: ignore[name-defined]
+dbutils.widgets.text("secret_scope_name", "hi_genie_dev_credentials")  # type: ignore[name-defined]
 scope = dbutils.widgets.get("secret_scope_name")  # type: ignore[name-defined]
 
 w = WorkspaceClient()
