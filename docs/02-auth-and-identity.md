@@ -56,6 +56,7 @@ In-Databricks agents (Genie, other DB agents, Omnigent) reach the App MCP server
 The App **implements an OAuth 2.0 Dynamic Client Registration endpoint** so that Databricks (and
 other DCR-capable clients) auto-discover, register, and create the UC connection — no manual
 client ID/secret configuration.
+Auto-discovery is exposed via `GET /.well-known/oauth-authorization-server`, which advertises `/register` as the `registration_endpoint`.
 
 Reconciling the two directions of DCR support:
 

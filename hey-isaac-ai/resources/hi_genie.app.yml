@@ -32,6 +32,13 @@ resources:
             key: persona_issuer
             permission: READ
 
+        # Databricks App URL for OAuth discovery metadata (managed by deploy.sh)
+        - name: app-url
+          secret:
+            scope: ${var.secret_scope_name}
+            key: app_url
+            permission: READ
+
         # Dynamic Client Registration shared secret (admin provisioned)
         - name: dcr-shared-secret
           secret:

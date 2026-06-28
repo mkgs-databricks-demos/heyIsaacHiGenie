@@ -590,7 +590,7 @@ build_app_deploy_args() {
 # --------------------------------------------------------------------------- #
 resolve_app_bundle_vars() {
   local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
-  log "Resolving app bundle variables for persona issuer"
+  log "Resolving app bundle variables for app URLs"
 
   local summary_json
   summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary \
@@ -632,12 +632,12 @@ print(f'APP_SECRET_SCOPE=\"{safe(get_var("secret_scope_name"))}\"')
   [[ -n "${APP_CLOUD}" ]]          || fail "Could not resolve cloud."
   [[ -n "${APP_SECRET_SCOPE}" ]]   || fail "Could not resolve secret_scope_name."
 
-  ok "Persona issuer app:   ${APP_NAME}"
-  ok "Persona issuer scope: ${APP_SECRET_SCOPE}"
+  ok "App URL source app:   ${APP_NAME}"
+  ok "App URL secret scope: ${APP_SECRET_SCOPE}"
 }
 
 # --------------------------------------------------------------------------- #
-# write_persona_issuer_secret — manage app issuer secret before bundle deploy
+# write_persona_issuer_secret — manage app URL secrets before bundle deploy
 # --------------------------------------------------------------------------- #
 write_persona_issuer_secret() {
   [[ -n "${APP_NAME}" ]]         || fail "APP_NAME is required to write persona_issuer."
@@ -645,7 +645,15 @@ write_persona_issuer_secret() {
   [[ -n "${APP_CLOUD}" ]]        || fail "APP_CLOUD is required to write persona_issuer."
   [[ -n "${APP_SECRET_SCOPE}" ]] || fail "APP_SECRET_SCOPE is required to write persona_issuer."
 
-  local issuer_url="https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/token/persona"
+  local app_url="https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com"
+  local issuer_url="${app_url}/token/persona"
+
+  log "Writing app_url to scope ${APP_SECRET_SCOPE}"
+  databricks secrets put-secret \
+    --scope "${APP_SECRET_SCOPE}" \
+    --key "app_url" \
+    --string-value "${app_url}"
+  ok "App URL secret set: ${app_url}"
 
   log "Writing persona_issuer to scope ${APP_SECRET_SCOPE}"
   databricks secrets put-secret \
