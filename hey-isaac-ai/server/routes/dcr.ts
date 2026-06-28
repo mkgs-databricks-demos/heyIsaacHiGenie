@@ -11,6 +11,13 @@ export function dcrRouter() {
   // RFC 7591 — Dynamic Client Registration endpoint.
   // Databricks calls this when auto-registering the UC HTTP connection.
   router.post('/', (req, res) => {
+    const configured = process.env.HI_GENIE_DCR_SHARED_SECRET;
+    const provided = req.header('x-dcr-shared-secret');
+    if (!configured || provided !== configured) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
+
     const { client_name, redirect_uris = [], grant_types = ['authorization_code'], ...rest } = req.body as Record<string, unknown>;
 
     if (typeof client_name !== 'string' || !client_name) {
@@ -30,7 +37,9 @@ export function dcrRouter() {
       metadata: { client_name, redirect_uris, grant_types, ...rest },
     });
 
-    console.log(`[dcr] registered client: ${client_id} (${client_name})`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[dcr] registered client: ${client_id} (${client_name})`);
+    }
 
     res.status(201).json({
       client_id,
