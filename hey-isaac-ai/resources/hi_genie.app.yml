@@ -14,8 +14,8 @@ resources:
       resources:
         - name: postgres
           postgres:
-            branch: projects/${var.lakebase_project_id}/branches/production
-            database: projects/${var.lakebase_project_id}/branches/production/databases/${var.lakebase_database_id}
+            branch: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}
+            database: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/databases/${var.lakebase_database_id}
             permission: CAN_CONNECT_AND_CREATE
 
         # Persona token signing key (HMAC secret — admin provisioned)
