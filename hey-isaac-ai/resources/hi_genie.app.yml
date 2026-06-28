@@ -25,6 +25,13 @@ resources:
             key: jwt_signing_key
             permission: READ
 
+        # Dynamic Client Registration shared secret (admin provisioned)
+        - name: dcr-shared-secret
+          secret:
+            scope: ${var.secret_scope_name}
+            key: dcr_shared_secret
+            permission: READ
+
         # GitHub OAuth App credentials for external agent auth (Phase 5)
         - name: github-client-id
           secret:

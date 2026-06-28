@@ -46,7 +46,8 @@ export async function verifyPersonaToken(
       typeof sub !== 'string' ||
       typeof persona !== 'string' ||
       typeof project_id !== 'string' ||
-      typeof jti !== 'string'
+      typeof jti !== 'string' ||
+      jti.length === 0
     ) {
       return null;
     }
