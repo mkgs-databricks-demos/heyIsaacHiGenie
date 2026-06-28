@@ -4,10 +4,12 @@
 
 `secret_scope_name` is now isolated per deployment target instead of shared across all environments.
 
-- dev: `hi_genie_dev_credentials`
+- dev: `dev_<user_handle>_hi_genie_credentials`, for example `dev_matthew_giglia_hi_genie_credentials`
 - staging: `hi_genie_staging_credentials`
 
 The previously shared scope, `hi_genie_credentials`, is no longer the default for bundle deployments.
+
+DABs `mode: development` auto-prefixes schemas, jobs, pipelines, and similar resources, but it does not auto-prefix Databricks secret scopes. Embedding `user_handle` in the dev scope name is the manual equivalent of the development prefix and gives each developer isolated secrets on a shared workspace.
 
 ## One-time migration
 
@@ -25,14 +27,15 @@ Secrets to migrate:
 ## Commands
 
 ```bash
-# Create new dev scope
-databricks secrets create-scope hi_genie_dev_credentials
+# Create a new dev scope for your user handle.
+# Example user_handle: matthew_giglia
+databricks secrets create-scope dev_matthew_giglia_hi_genie_credentials
 
 # Re-provision each secret (replace <value> with actual secret):
-databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key --string-value <value>
-databricks secrets put-secret hi_genie_dev_credentials dcr_shared_secret --string-value <value>
-databricks secrets put-secret hi_genie_dev_credentials github_client_id --string-value <stub>
-databricks secrets put-secret hi_genie_dev_credentials github_client_secret --string-value <stub>
+databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials jwt_signing_key --string-value <value>
+databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials dcr_shared_secret --string-value <value>
+databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials github_client_id --string-value <stub>
+databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials github_client_secret --string-value <stub>
 ```
 
 For staging, create and populate `hi_genie_staging_credentials` the same way before the first staging deployment.

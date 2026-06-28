@@ -107,7 +107,7 @@ databricks auth login --host https://fevm-hls-fde.cloud.databricks.com
 ./deploy.sh --target dev --infra
 
 # 3. Provision the persona token signing key (admin step)
-databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key \
+databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials jwt_signing_key \
   --string-value "$(openssl rand -base64 64)"
 
 # 4. Deploy app + run bootstrap (stores workspace_url, validates jwt_signing_key)
@@ -163,7 +163,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 |---|---|
 | `catalog` | `hls_fde_dev` |
 | `schema` | `hi_genie` |
-| `secret_scope_name` | `hi_genie_dev_credentials` |
+| `secret_scope_name` | `dev_${var.user_handle}_hi_genie_credentials` |
 | `lakebase_project_id` | `dev-matthew-giglia-hi-genie` |
 | `run_as_user` | `matthew.giglia@databricks.com` |
 
@@ -180,7 +180,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 
 ---
 
-## Secret Scopes (`hi_genie_dev_credentials`, `hi_genie_staging_credentials`)
+## Secret Scopes (`dev_<user_handle>_hi_genie_credentials`, `hi_genie_staging_credentials`)
 
 ### Auto-provisioned by `platform_bootstrap` job
 | Key | Value |
@@ -190,7 +190,7 @@ cd hey-isaac-ai && npm install && npm run typecheck
 ### Admin-provisioned (manual)
 | Key | How to provision |
 |---|---|
-| `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret hi_genie_dev_credentials jwt_signing_key --string-value <value>` |
+| `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials jwt_signing_key --string-value <value>` |
 | `github_client_id` | GitHub OAuth App client ID — Phase 5, not needed for spike |
 | `github_client_secret` | GitHub OAuth App client secret — Phase 5, not needed for spike |
 
@@ -304,4 +304,4 @@ production hardening.
 | # | Area | Gap | Action |
 |---|------|-----|--------|
 | O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
-| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in target-specific scope (`hi_genie_dev_credentials` for dev, `hi_genie_staging_credentials` for staging) are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret hi_genie_dev_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret` (or use the staging scope for staging). |
+| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in target-specific scope (`dev_<user_handle>_hi_genie_credentials` for dev, `hi_genie_staging_credentials` for staging) are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret dev_matthew_giglia_hi_genie_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret` (or use the staging scope for staging). |
