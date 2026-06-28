@@ -12,7 +12,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.iam import SecretAclPermission
 
 dbutils.widgets.text("principal", "")           # type: ignore[name-defined]
-dbutils.widgets.text("secret_scope_name", "hi_genie_dev_credentials")  # type: ignore[name-defined]
+dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
 
 principal = dbutils.widgets.get("principal")    # type: ignore[name-defined]
 scope = dbutils.widgets.get("secret_scope_name")  # type: ignore[name-defined]

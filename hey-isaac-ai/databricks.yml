@@ -26,11 +26,6 @@ variables:
       Cloud provider slug for the workspace (aws, azure, gcp).
       Used to compute the app public URL and persona issuer.
     default: aws
-  persona_issuer:
-    description: >-
-      Fully-qualified URL of the persona token issuer endpoint.
-      Derived from app_name, workspace_id, and cloud.
-    default: "https://${var.app_name}-${var.workspace_id}.${var.cloud}.databricksapps.com/token/persona"
   lakebase_project_id:
     description: >
       Lakebase Autoscaling project ID.
