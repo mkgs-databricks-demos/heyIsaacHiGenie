@@ -224,7 +224,7 @@ deploy_bundle() {
   [[ -f "${bundle_dir}/databricks.yml" ]] || { warn "No databricks.yml in '${bundle_name}' — skipping."; return 0; }
 
   log "Validating ${bundle_name} (target: ${TARGET})"
-  (cd_bundle "${bundle_dir}" && databricks bundle validate --target "${TARGET}")
+  (cd_bundle "${bundle_dir}" && databricks bundle validate --target "${TARGET}" "${extra_args[@]}")
   ok "Validation passed: ${bundle_name}"
 
   [[ "${VALIDATE_ONLY}" == true ]] && return 0
@@ -572,6 +572,7 @@ build_app_deploy_args() {
   APP_DEPLOY_ARGS=()
   # lakebase_database_id is discovered at runtime (not known at YAML-write time)
   [[ -n "${LAKEBASE_DATABASE_ID}" ]] && APP_DEPLOY_ARGS+=(--var "lakebase_database_id=${LAKEBASE_DATABASE_ID}")
+  [[ -n "${SCHEMA}" ]] && APP_DEPLOY_ARGS+=(--var "schema=${SCHEMA}")
   # Inject user_handle for dev target
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
     APP_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
