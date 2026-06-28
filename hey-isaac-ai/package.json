@@ -8,7 +8,7 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && vite build",
     "build:server": "tsdown --config tsdown.server.config.ts",
-    "start": "node build/index.mjs",
+    "start": "node build/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
