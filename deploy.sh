@@ -675,6 +675,46 @@ write_persona_issuer_secret() {
 }
 
 # --------------------------------------------------------------------------- #
+# ensure_dev_placeholder_secrets
+# For dev targets, provision placeholder values for admin-provisioned secrets
+# that the app bundle requires but which are not written by this script.
+# This is idempotent: existing secrets are left untouched.
+# --------------------------------------------------------------------------- #
+ensure_dev_placeholder_secrets() {
+  [[ "${TARGET}" == "dev" ]] || return 0
+  [[ -n "${APP_SECRET_SCOPE}" ]] || return 0
+
+  local existing_keys
+  existing_keys=$(databricks secrets list-secrets "${APP_SECRET_SCOPE}" --output json 2>/dev/null     | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(s['key'] for s in d))" 2>/dev/null) || existing_keys=""
+
+  # dcr_shared_secret — random hex token for dev
+  if [[ "${existing_keys}" != *"dcr_shared_secret"* ]]; then
+    local dcr_secret
+    dcr_secret=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    databricks secrets put-secret "${APP_SECRET_SCOPE}" "dcr_shared_secret" --string-value "${dcr_secret}"
+    ok "Dev placeholder set: dcr_shared_secret"
+  else
+    log "Secret already present: dcr_shared_secret"
+  fi
+
+  # github_client_id — placeholder (replace with real OAuth App credentials when ready)
+  if [[ "${existing_keys}" != *"github_client_id"* ]]; then
+    databricks secrets put-secret "${APP_SECRET_SCOPE}" "github_client_id" --string-value "dev-placeholder-github-client-id"
+    ok "Dev placeholder set: github_client_id"
+  else
+    log "Secret already present: github_client_id"
+  fi
+
+  # github_client_secret — placeholder
+  if [[ "${existing_keys}" != *"github_client_secret"* ]]; then
+    databricks secrets put-secret "${APP_SECRET_SCOPE}" "github_client_secret" --string-value "dev-placeholder-github-client-secret"
+    ok "Dev placeholder set: github_client_secret"
+  else
+    log "Secret already present: github_client_secret"
+  fi
+}
+
+# --------------------------------------------------------------------------- #
 # resolve_app_name
 # --------------------------------------------------------------------------- #
 resolve_app_name() {
@@ -855,6 +895,7 @@ if [[ "${DEPLOY_APP}" == true ]]; then
   if [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
     resolve_app_bundle_vars
     write_persona_issuer_secret
+    ensure_dev_placeholder_secrets
   fi
   if [[ ${#APP_DEPLOY_ARGS[@]} -gt 0 ]]; then
     deploy_bundle "${APP_BUNDLE}" "${APP_DEPLOY_ARGS[@]}"
