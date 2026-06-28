@@ -4,7 +4,7 @@ const AST_GREP_STUB_ID = '\0ast-grep-native-stub';
 
 export default defineConfig({
   entry: { index: 'server/server.ts' },
-  format: ['esm'],
+  format: ['cjs'],
   outDir: 'build',
   dts: false,
   clean: true,
@@ -22,7 +22,7 @@ export default defineConfig({
         if (id === AST_GREP_STUB_ID) {
           // Empty object: makes @ast-grep/napi think nativeBinding loaded OK
           // nativeBinding = {} is truthy, so the throw at bottom is skipped
-          return 'module.exports = {};';
+          return 'export default {};';
         }
       },
     },

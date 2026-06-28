@@ -1,1 +1,0 @@
-import{require_main as e}from"./main-BKQe0BJd.js";export default e();
