@@ -1,0 +1,36 @@
+# Unity Catalog schema for per-developer Hey Isaac / Hi Genie OTEL telemetry tables.
+#
+# The Databricks Apps platform auto-creates the OTEL tables referenced in
+# hi_genie.app.yml (hi_genie_otel_logs, hi_genie_otel_metrics, hi_genie_otel_traces),
+# but the schema itself must exist first. In the dev target this resolves to
+# hls_fde_dev.dev_<user_handle>_hi_genie, giving each developer an isolated schema.
+
+resources:
+  schemas:
+    hi_genie_otel_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: >
+        Per-developer Unity Catalog schema for Hey Isaac / Hi Genie OTEL telemetry.
+        Hosts the auto-created hi_genie_otel_logs, hi_genie_otel_metrics, and
+        hi_genie_otel_traces tables written by the Databricks Apps platform.
+      lifecycle:
+        prevent_destroy: false
+      grants:
+        - principal: account users
+          privileges:
+            - USE_SCHEMA
+
+targets:
+
+  dev:
+    resources:
+      schemas:
+        hi_genie_otel_schema:
+          grants:
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+            - principal: ${var.run_as_user}
+              privileges:
+                - ALL_PRIVILEGES
