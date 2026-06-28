@@ -1,1 +1,0 @@
-import{__commonJSMin as e}from"./chunk-f8MovAud.js";import{require_src$1 as t}from"./src-DQuB4rCe.js";var n=e(exports=>{Object.defineProperty(exports,`__esModule`,{value:!0}),exports.getMachineId=void 0;let n=t();async function r(){n.diag.debug(`could not read machine-id: unsupported platform`)}exports.getMachineId=r});export default n();
