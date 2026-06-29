@@ -14,7 +14,7 @@ if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
   }
 }
 
-const AppKit = createApp({
+const AppKit = await createApp({
   plugins: [server(), lakebase()],
 
   async onPluginsReady(appkit) {
@@ -45,18 +45,9 @@ const AppKit = createApp({
         res.json({
           email: human,
           oboHeaders: Object.fromEntries(
-            Object.entries(req.headers)
-              .filter(([k]) =>
-                k.startsWith('x-forwarded-') ||
-                k.startsWith('x-databricks-') ||
-                k === 'x-ms-client-principal-name'
-              )
-              .map(([k, v]) => [
-                k,
-                k === 'x-forwarded-access-token' && typeof v === 'string'
-                  ? v.substring(0, 40) + '…'
-                  : v,
-              ])
+            ['x-forwarded-user', 'x-databricks-user-email', 'x-ms-client-principal-name']
+              .filter(h => req.headers[h])
+              .map(h => [h, req.headers[h]])
           ),
         });
       });
