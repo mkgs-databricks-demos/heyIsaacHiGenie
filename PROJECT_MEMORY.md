@@ -75,47 +75,36 @@ hey-isaac-hi-genie/
 
 ---
 
-## Current Status: Phase 0 Auth Spike — Scaffolded, Not Yet Deployed
+## Current Status: Bundles Deployed — Lakebase Live — SPN Grants Automated
 
-### What is done
+### What is done (as of 2026-06-29)
 - All architecture decisions finalized (see `docs/`)
-- Both DABs bundles fully scaffolded on branch `feat/spike-scaffold`
-- Branch pushed to `origin` at `https://github.com/mkgs-databricks-demos/heyIsaacHiGenie`
-- `deploy.sh` adapted from lakeLoom conventions
+- Both DABs bundles (`hey-isaac-infra`, `hey-isaac-ai`) deployed to `dev` target on `fevm-hls-fde`
+- Lakebase project **`dev-hi-genie`**, branch **`dev-matthew-giglia`** live
+  - Endpoint: `ep-floral-lake-d2m059vl.database.us-east-1.cloud.databricks.com:5432`
+  - Database: `databricks_postgres`
+- UC schema, secret scope, and app SPN all provisioned
+- **App SPN Postgres grants fully automated** via `configure_app_spn` job (PR #20)
+  - SPN `17579bfd-e62c-4bef-9b30-9175527e325d` has `USAGE + CREATE` on `public` and `appkit` schemas
+  - Default privileges set on all future tables and sequences in `public`
+- `deploy.sh` builds the Lakebase connection string at deploy time (deployer's OAuth token +
+  live endpoint host) and passes it to the job — no credentials baked into bundle YAML
 
-### What is NOT done yet
-- **Infra bundle has never been deployed** — `databricks bundle deploy` has not run
-- `jwt_signing_key` has NOT been provisioned in the secret scope
-- The app bundle has NOT been deployed
-- No Lakebase project exists yet
-- No UC schema exists yet
-- `npm install` has NOT been run in `hey-isaac-ai/`
+### Active dev environment
+| Resource | Value |
+|---|---|
+| Workspace | `fevm-hls-fde.cloud.databricks.com` |
+| Lakebase project | `dev-hi-genie` |
+| Lakebase branch | `dev-matthew-giglia` |
+| Postgres endpoint | `ep-floral-lake-d2m059vl.database.us-east-1.cloud.databricks.com:5432` |
+| App SPN | `17579bfd-e62c-4bef-9b30-9175527e325d` |
+| App name | `hey-isaac-hi-genie-dev` |
 
-### Blocked on
-- Need to authenticate Databricks CLI against `fevm-hls-fde.cloud.databricks.com`
-  (was started but not completed — Matthew was away from his home network)
-
----
-
-## First Deployment Sequence (pick up here)
-
+### Re-deploy sequence
 ```bash
-# 1. Authenticate CLI
-databricks auth login --host https://fevm-hls-fde.cloud.databricks.com
-
-# 2. Deploy infra (schema, secret scope, Lakebase project)
-./deploy.sh --target dev --infra
-
-# 3. Provision the persona token signing key (admin step)
-databricks secrets put-secret dev_<your_user_handle>_hi_genie_credentials jwt_signing_key \
-  --string-value "$(openssl rand -base64 64)"
-
-# 4. Deploy app + run bootstrap (stores workspace_url, validates jwt_signing_key)
-./deploy.sh --target dev --app --run-setup
-
-# 5. Install Node deps and verify the build locally
-cd hey-isaac-ai && npm install && npm run typecheck
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev
 ```
+`deploy.sh` handles infra → bootstrap → app → SPN grants in one pass.
 
 ---
 
@@ -195,8 +184,19 @@ cd hey-isaac-ai && npm install && npm run typecheck
 | `github_client_secret` | GitHub OAuth App client secret — Phase 5, not needed for spike |
 
 ### App SPN access
-The app's auto-provisioned SPN gets READ on the scope via the `configure_app_spn` job,
-which `deploy.sh` runs automatically after the app bundle deploys.
+The app's auto-provisioned SPN gets READ on the secret scope **and** Postgres schema grants
+via the `configure_app_spn` job, which `deploy.sh` runs automatically after the app bundle deploys.
+
+Postgres grants applied on every deploy (all idempotent):
+```sql
+GRANT ALL ON SCHEMA public TO "<spn-client-id>";
+GRANT ALL ON SCHEMA appkit TO "<spn-client-id>";   -- skipped if appkit schema absent
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "<spn-client-id>";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "<spn-client-id>";
+```
+`deploy.sh` builds a full `lakebase_connection_string` at deploy time (deployer's OAuth token +
+live Lakebase endpoint host) and passes it to the notebook as a job parameter. The notebook
+calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 
 ---
 
@@ -227,7 +227,7 @@ which `deploy.sh` runs automatically after the app bundle deploys.
 
 | Phase | Status | Description |
 |---|---|---|
-| 0 — Auth spike | **Scaffolded, not deployed** | Prove OBO + DCR + persona token round-trip |
+| 0 — Auth spike | **Bundles deployed ✓** — auth round-trip in progress | Prove OBO + DCR + persona token round-trip |
 | 1 — Foundation | Not started | Lakebase schema DDL, AppKit scaffold |
 | 2 — Auth productionize | Not started | DCR persistence, persona token rotation, key storage |
 | 3 — MCP server | Not started | Full messaging/memory tools, thread linkage |
@@ -274,6 +274,28 @@ YAML-write time. `deploy.sh` discovers it via:
 databricks postgres list-databases "projects/${LAKEBASE_PROJECT_ID}/branches/production"
 ```
 and passes it to the app bundle as `--var lakebase_database_id=<id>`.
+
+### Lakebase Connection String Pattern (`deploy.sh` → `configure_app_spn`)
+`deploy.sh` assembles a full Postgres connection string **at deploy time** using the deployer's
+OAuth access token (proven to work for psql; rotates automatically) and the live Lakebase
+endpoint host, then passes it to the `configure_app_spn` job as a single parameter:
+```bash
+# deploy.sh (inside run_configure_app_spn)
+_token=$(databricks auth token --output json | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+_host=$(databricks postgres list-endpoints "projects/${LAKEBASE_PROJECT_ID}/branches/${LAKEBASE_BRANCH_ID}" \
+  --output json | python3 -c "import sys,json; eps=json.load(sys.stdin); ...; print(eps[0]['status']['hosts']['host'])")
+_user=$(databricks auth describe --output json | python3 -c "... print(d['details']['userName'])")
+# URL-encode both user and token (special chars in OAuth tokens)
+_user_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_user}")
+_token_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_token}")
+lb_conn_str="postgresql://${_user_enc}:${_token_enc}@${_host}:5432/databricks_postgres?sslmode=require"
+```
+The notebook receives the string and calls `psycopg2.connect(lakebase_connection_string)` —
+no credential logic in the notebook. This matches the `platform_bootstrap.py` pattern.
+
+**Failure semantics:**
+- Lakebase configured (`LAKEBASE_PROJECT_ID`/`BRANCH_ID` set) but credentials unresolvable → `fail` (hard abort, deploy blocked)
+- Lakebase not configured → warn-and-continue (backward-compatible for non-Lakebase deployments)
 
 ---
 

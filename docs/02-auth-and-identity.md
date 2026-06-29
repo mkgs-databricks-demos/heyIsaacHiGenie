@@ -100,6 +100,26 @@ verified persona token.
 - Persona = App-issued signed token, bounded to granted users; never self-asserted in the body.
 - Identity hierarchy human → persona → sub-agent, carried on messages/summaries.
 
+## App SPN — deployment-time grants
+
+Databricks Apps auto-provisions a **service principal** for the app itself. This SPN is the
+identity the app uses for service-level Postgres queries (DDL, admin operations, AppKit pool).
+It is distinct from the OBO human user and has no relation to the persona token.
+
+`deploy.sh` calls the `configure_app_spn` DABs job after every app bundle deploy to ensure the
+SPN has the required access (idempotent — safe to re-run):
+
+| Grant | Where |
+|---|---|
+| Secret scope READ | App's secret scope (all targets) |
+| `GRANT ALL ON SCHEMA public` | Lakebase `databricks_postgres` |
+| `GRANT ALL ON SCHEMA appkit` | Lakebase (applied only if `appkit` schema exists) |
+| `ALTER DEFAULT PRIVILEGES … GRANT ALL ON TABLES/SEQUENCES IN SCHEMA public` | Lakebase |
+
+The job receives a **`lakebase_connection_string`** parameter built at deploy time by `deploy.sh`
+(deployer's OAuth token + live endpoint host, both URL-encoded). The notebook just calls
+`psycopg2.connect()` — no credential logic inside the notebook.
+
 ## Open items
 
 - Persona-token format (JWT vs opaque + introspection), signing key storage (Databricks secret),
