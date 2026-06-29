@@ -722,7 +722,7 @@ resolve_app_name() {
   log "Resolving app name from bundle summary"
 
   local summary_json
-  summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary --target "${TARGET}" --output json 2>/dev/null) || \
+  summary_json=$(cd_bundle "${bundle_dir}" && databricks bundle summary --target "${TARGET}" "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}" --output json 2>/dev/null) || \
     fail "Could not read bundle summary for ${APP_BUNDLE}."
 
   eval "$(echo "${summary_json}" | python3 -c "
