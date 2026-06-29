@@ -819,7 +819,7 @@ print(d.get('details', {}).get('userName', '') or d.get('userName', '') or d.get
       lb_conn_str="postgresql://${_user_enc}:${_token_enc}@${_host}:5432/databricks_postgres?sslmode=require"
       log "Lakebase connection string resolved — Postgres SPN grants will be applied"
     else
-      warn "Could not resolve Lakebase credentials (token=${_token:+set}, host=${_host:-unset}, user=${_user:-unset}) — skipping Postgres grants"
+      fail "Lakebase is configured (LAKEBASE_PROJECT_ID/BRANCH_ID set) but credentials could not be resolved (token=${_token:+set}, host=${_host:-unset}, user=${_user:-unset}). Cannot apply Postgres SPN grants — aborting deploy."
     fi
   fi
 
