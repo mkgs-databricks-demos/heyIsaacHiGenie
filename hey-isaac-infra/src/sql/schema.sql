@@ -1,3 +1,9 @@
+-- REFERENCE DOCUMENT: This file describes the current intended schema state.
+-- It is NOT executed directly. Schema is applied via TypeScript migrations:
+--   hey-isaac-ai/server/migrations/001_initial_schema.ts  (base schema)
+--   hey-isaac-ai/server/migrations/002_phase1_trackb.ts   (Phase 1 Track B additions)
+-- To make a schema change, add a new numbered migration file.
+
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 1. projects
@@ -177,8 +183,6 @@ CREATE TABLE IF NOT EXISTS persona_token_jti (
   expires_at  TIMESTAMPTZ NOT NULL,
   CHECK (human = lower(human))
 );
-ALTER TABLE persona_token_jti ADD COLUMN IF NOT EXISTS agent_id TEXT;
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_agents_project ON agents(project_id);
