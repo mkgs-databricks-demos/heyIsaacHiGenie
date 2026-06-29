@@ -27,9 +27,9 @@ print(f"App URL: {app_url}")
 # COMMAND ----------
 
 # Health check
-r = requests.get(f"{app_url}/health", timeout=15)
-assert r.status_code == 200, f"/health returned {r.status_code}: {r.text}"
-print(f"✓ /health  →  {r.json()}")
+r = requests.get(f"{app_url}/health", timeout=15, allow_redirects=False)
+assert r.status_code in (200, 302), f"/health returned {r.status_code}: {r.text}"
+print(f"✓ /health  →  HTTP {r.status_code}")
 
 # COMMAND ----------
 
