@@ -108,9 +108,9 @@ export function personaTokenRouter(db: Db) {
 
     // B2: Persist JTI to DB
     await db.query(
-      `INSERT INTO persona_token_jti (jti, human, persona, project_id, issued_at, expires_at)
-       VALUES ($1, lower($2), $3, $4, now(), now() + interval '1 hour')`,
-      [jti, human, persona, project_id],
+      `INSERT INTO persona_token_jti (jti, human, persona, project_id, agent_id, issued_at, expires_at)
+       VALUES ($1, lower($2), $3, $4, $5, now(), now() + interval '1 hour')`,
+      [jti, human, persona, project_id, agent.id],
     );
 
     // Opportunistic cleanup of expired JTIs — fire-and-forget

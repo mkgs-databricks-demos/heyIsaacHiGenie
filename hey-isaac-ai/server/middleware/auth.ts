@@ -1,19 +1,35 @@
 import type { Request, Response, NextFunction } from 'express';
-import { jwtVerify } from 'jose';
+import { jwtVerify, decodeJwt } from 'jose';
 import type { Db } from '../db/index.js';
 
-// Databricks Apps inject the authenticated user's identity via these headers.
-const OBO_HEADER_CANDIDATES = [
-  'x-forwarded-email',
-  'x-forwarded-user',
-  'x-databricks-user-email',
-  'x-ms-client-principal-name',
-] as const;
-
 export function extractOboIdentity(req: Request): string | null {
+  // Try x-forwarded-access-token JWT sub first
+  const accessToken = req.headers['x-forwarded-access-token'];
+  if (typeof accessToken === 'string' && accessToken.length > 0) {
+    try {
+      const payload = decodeJwt(accessToken);
+      if (typeof payload.sub === 'string' && payload.sub.includes('@')) {
+        return payload.sub.toLowerCase();
+      }
+    } catch {
+      // fall through to header candidates
+    }
+  }
+
+  // Fallback: scan header candidates in order, skip numeric user IDs
+  const OBO_HEADER_CANDIDATES = [
+    'x-forwarded-email',
+    'x-forwarded-user',
+    'x-databricks-user-email',
+    'x-ms-client-principal-name',
+  ] as const;
   for (const header of OBO_HEADER_CANDIDATES) {
     const val = req.headers[header];
-    if (typeof val === 'string' && val.length > 0) return val.toLowerCase();
+    if (typeof val === 'string' && val.length > 0) {
+      // Skip numeric Databricks user IDs like "1234567890@1234567890"
+      if (header === 'x-forwarded-user' && /^\d+@\d+$/.test(val)) continue;
+      return val.toLowerCase();
+    }
   }
   return null;
 }
@@ -70,13 +86,13 @@ export function createAuthMiddleware(db: Db) {
         const claims = await verifyPersonaToken(personaToken, issuer);
         if (claims && claims.sub === human) {
           // Verify JTI exists in DB and hasn't expired
-          const jtiRow = await db.query<{ jti: string; human: string; project_id: string | null }>(
-            'SELECT jti, human, project_id FROM persona_token_jti WHERE jti = $1 AND expires_at > now()',
+          const jtiRow = await db.query<{ jti: string; human: string; project_id: string | null; agent_id: string | null }>(
+            'SELECT jti, human, project_id, agent_id FROM persona_token_jti WHERE jti = $1 AND expires_at > now()',
             [claims.jti],
           );
           if (jtiRow.rows.length > 0) {
             const row = jtiRow.rows[0];
-            if (row.human === human && row.project_id === claims.project_id) {
+            if (row.human === human && row.project_id === claims.project_id && row.agent_id === claims.agent_id) {
               req.persona = claims.persona;
               req.agentId = claims.agent_id;
             }

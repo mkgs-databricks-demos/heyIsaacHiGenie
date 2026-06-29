@@ -61,7 +61,9 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
         `SELECT a.*, ag.user_id AS grantee_id
          FROM agents a
          LEFT JOIN agent_grants ag ON ag.agent_id = a.id AND ag.user_id = lower($2)
-         WHERE a.project_id = $1`,
+         WHERE a.project_id = $1
+         ORDER BY a.nickname
+         LIMIT 200`,
         [project_id, human],
       );
       return ok(result.rows);
@@ -112,10 +114,10 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
 
       const result = await db.asUser(req).query<Message>(
         `INSERT INTO messages
-           (id, thread_id, parent_agent_id, to_agent_id, content, author_user_id, role, created_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, lower($5), 'assistant', now())
+           (id, thread_id, parent_agent_id, to_agent_id, content, role, created_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'assistant', now())
          RETURNING *`,
-        [thread_id, agentId, to_agent_id, content, human],
+        [thread_id, agentId, to_agent_id, content],
       );
       return ok(result.rows[0]);
     },
@@ -172,10 +174,10 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       // summary_type not in Track A DDL schema — stored in summary field
       const result = await db.asUser(req).query<SessionSummary>(
         `INSERT INTO session_summaries
-           (id, thread_id, parent_agent_id, author_user_id, summary, created_at)
-         VALUES (gen_random_uuid(), $1, $2, lower($3), $4, now())
+           (id, thread_id, parent_agent_id, summary, created_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, now())
          RETURNING *`,
-        [thread_id, agentId, human, content],
+        [thread_id, agentId, content],
       );
       return ok(result.rows[0]);
     },

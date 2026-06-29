@@ -123,6 +123,7 @@ export interface PersonaTokenJti {
   human: string; // always lower-case
   persona: string;
   project_id: string | null;
+  agent_id: string | null;
   issued_at: Date;
   expires_at: Date;
 }
