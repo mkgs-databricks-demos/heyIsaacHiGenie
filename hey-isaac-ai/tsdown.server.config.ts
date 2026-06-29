@@ -4,7 +4,7 @@ const AST_GREP_STUB_ID = '\0ast-grep-native-stub';
 
 export default defineConfig({
   entry: { index: 'server/server.ts' },
-  format: ['esm'],
+  format: ['cjs'],
   outDir: 'build',
   dts: false,
   clean: true,

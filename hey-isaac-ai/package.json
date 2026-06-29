@@ -2,7 +2,6 @@
   "name": "hey-isaac-hi-genie",
   "version": "0.1.0",
   "description": "Multi-agent coordination platform — MCP server and owner dashboard on Databricks",
-  "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/server.ts",
     "build": "echo 'Skipping build: pre-built artifacts ship with the bundle'",
