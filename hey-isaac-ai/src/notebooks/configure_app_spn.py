@@ -14,4 +14,4 @@ if not principal:
 w = WorkspaceClient()
 w.secrets.put_acl(scope=scope, principal=principal, permission=AclPermission.READ)
 
-print(f"✓ {principal} now has READ on scope '{scope}'")
+print("✓ App SPN now has READ on the configured secret scope")

@@ -323,6 +323,6 @@ else:
 # COMMAND ----------
 
 print("\n✓ Platform bootstrap complete.")
-print(f"  Scope: {scope}")
+print("  Scope: <configured>")
 print(f"  Keys auto-provisioned: workspace_url")
 print(f"  Keys admin-provisioned: {', '.join(ADMIN_KEYS)}")
