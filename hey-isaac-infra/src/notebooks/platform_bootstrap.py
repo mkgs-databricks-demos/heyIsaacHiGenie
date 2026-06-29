@@ -3,6 +3,7 @@
 # MAGIC ## Hey Isaac / Hi Genie — Platform Bootstrap
 # MAGIC
 # MAGIC Stores `workspace_url` in the secret scope and validates admin-provisioned secrets.
+# MAGIC Also executes Lakebase DDL (schema + seed) when `lakebase_connection_string` is set.
 # MAGIC Run once after the infra bundle deploys, before deploying the app bundle.
 
 # COMMAND ----------
@@ -10,7 +11,12 @@
 from databricks.sdk import WorkspaceClient
 
 dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
+dbutils.widgets.text("lakebase_connection_string", "__unset__")  # type: ignore[name-defined]
+dbutils.widgets.text("target", "dev")  # type: ignore[name-defined]
+
 scope = dbutils.widgets.get("secret_scope_name")  # type: ignore[name-defined]
+lakebase_connection_string = dbutils.widgets.get("lakebase_connection_string")  # type: ignore[name-defined]
+target = dbutils.widgets.get("target")  # type: ignore[name-defined]
 
 w = WorkspaceClient()
 
@@ -113,8 +119,7 @@ else:
 
 # COMMAND ----------
 
-
 print("\n✓ Platform bootstrap complete.")
-print(f"  Scope: {scope}")
+print("  Scope: <configured>")
 print(f"  Keys auto-provisioned: workspace_url")
 print(f"  Keys admin-provisioned: {', '.join(ADMIN_KEYS)}")

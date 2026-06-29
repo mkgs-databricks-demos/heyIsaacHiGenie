@@ -21,7 +21,6 @@ export default defineConfig({
       load(id: string) {
         if (id === AST_GREP_STUB_ID) {
           // Empty object: makes @ast-grep/napi think nativeBinding loaded OK
-          // nativeBinding = {} is truthy, so the throw at bottom is skipped
           return 'export default {};';
         }
       },

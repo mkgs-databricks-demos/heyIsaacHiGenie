@@ -36,20 +36,20 @@ const AppKit = createApp({
       app.use(express.json());
 
       // MCP streamable-HTTP endpoint (RFC — MCP 2025-03 transport spec)
-      app.use('/mcp', mcpRouter());
+      app.use('/mcp', mcpRouter(db));
 
       // OAuth 2.0 Dynamic Client Registration (RFC 7591)
       // Databricks calls this when auto-registering the UC HTTP connection.
-      app.use('/register', dcrRouter());
+      app.use('/register', dcrRouter(db));
 
       // OAuth 2.0 Authorization Server Metadata (RFC 8414)
       // Databricks discovers the Dynamic Client Registration endpoint here.
       app.use('/.well-known', wellKnownRouter());
 
       // Persona token issuer — agents call this to get a signed persona JWT
-      app.use('/token', personaTokenRouter());
+      app.use('/token', personaTokenRouter(db));
 
-      // Identity debug — useful during spike to confirm OBO headers
+      // Identity debug — useful during development to confirm OBO headers
       app.get('/api/me', (req, res) => {
         const human = extractOboIdentity(req);
         if (!human) {
@@ -59,18 +59,9 @@ const AppKit = createApp({
         res.json({
           email: human,
           oboHeaders: Object.fromEntries(
-            Object.entries(req.headers)
-              .filter(([k]) =>
-                k.startsWith('x-forwarded-') ||
-                k.startsWith('x-databricks-') ||
-                k === 'x-ms-client-principal-name'
-              )
-              .map(([k, v]) => [
-                k,
-                k === 'x-forwarded-access-token' && typeof v === 'string'
-                  ? v.substring(0, 40) + '…'
-                  : v,
-              ])
+            ['x-forwarded-email', 'x-forwarded-user', 'x-databricks-user-email', 'x-ms-client-principal-name']
+              .filter(h => req.headers[h])
+              .map(h => [h, req.headers[h]])
           ),
         });
       });

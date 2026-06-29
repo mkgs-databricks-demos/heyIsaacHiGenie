@@ -790,6 +790,7 @@ run_configure_app_spn() {
   log "Configuring app SPN scope access (job: ${CONFIGURE_APP_SPN_JOB})"
   (cd_bundle "${bundle_dir}" && databricks bundle run "${CONFIGURE_APP_SPN_JOB}" \
     --target "${TARGET}" \
+    "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}" \
     --params "principal=${APP_SPN_CLIENT_ID}") || {
     warn "Scope ACL job failed — app may not be able to read secrets."; return 0;
   }
@@ -827,9 +828,8 @@ deploy_app_source() {
 
   log "Pushing source to container (source: ${APP_SOURCE_PATH})"
   databricks apps deploy "${APP_NAME}" \
-    --source-code-path "${APP_SOURCE_PATH}" \
-    --no-wait || fail "Source deployment failed."
-  ok "Source deployment initiated for ${APP_NAME}"
+    --source-code-path "${APP_SOURCE_PATH}" || fail "Source deployment failed."
+  ok "Source deployment complete for ${APP_NAME}"
 }
 
 # --------------------------------------------------------------------------- #
@@ -838,7 +838,7 @@ deploy_app_source() {
 run_post_deploy_validation() {
   local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
   log "Running post-deploy validation"
-  (cd_bundle "${bundle_dir}" && databricks bundle run "${POST_DEPLOY_VALIDATION_JOB}" --target "${TARGET}") || {
+  (cd_bundle "${bundle_dir}" && databricks bundle run "${POST_DEPLOY_VALIDATION_JOB}" --target "${TARGET}" "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}") || {
     warn "Post-deploy validation FAILED — check the job run for details."; return 1;
   }
   ok "Post-deploy validation passed"
@@ -871,6 +871,11 @@ if [[ "${DEPLOY_INFRA}" == true ]]; then
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
     INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
   fi
+  # TODO(phase1): Wire lakebase_connection_string to infra bundle deploy args.
+  # The connection string requires Lakebase branch credentials that are injected
+  # at app runtime. For now, platform_bootstrap.py receives an empty string and
+  # skips DDL execution if lakebase_connection_string is empty or '__unset__'.
+  # INFRA_DEPLOY_ARGS will be updated once the Lakebase connection string pattern is confirmed.
   deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
 fi
 
