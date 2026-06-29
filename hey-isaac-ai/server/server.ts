@@ -14,7 +14,7 @@ if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
   }
 }
 
-const AppKit = await createApp({
+const AppKit = createApp({
   plugins: [server(), lakebase()],
 
   async onPluginsReady(appkit) {

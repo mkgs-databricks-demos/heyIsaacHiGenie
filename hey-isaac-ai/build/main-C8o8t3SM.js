@@ -1,0 +1,1 @@
+const e=require(`./main-4mZO1Hdj.js`);Object.defineProperty(exports,`default`,{enumerable:!0,get:function(){return e.require_main()}});

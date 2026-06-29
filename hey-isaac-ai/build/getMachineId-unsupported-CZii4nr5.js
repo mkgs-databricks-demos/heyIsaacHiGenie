@@ -1,1 +1,0 @@
-import{__commonJSMin as e}from"./chunk-Sftqgv8k.js";import{require_src as t}from"./src-gdAvE2GT.js";var n=e(exports=>{Object.defineProperty(exports,`__esModule`,{value:!0}),exports.getMachineId=void 0;let n=t();async function r(){n.diag.debug(`could not read machine-id: unsupported platform`)}exports.getMachineId=r});export default n();
