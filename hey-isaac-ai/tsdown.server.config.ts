@@ -8,6 +8,7 @@ export default defineConfig({
   outDir: 'build',
   dts: false,
   clean: true,
+  minify: true,
   plugins: [
     {
       name: 'stub-ast-grep-native',

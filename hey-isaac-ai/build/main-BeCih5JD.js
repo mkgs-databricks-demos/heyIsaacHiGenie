@@ -1,0 +1,1 @@
+import{require_main as e}from"./main-B2QIMWu-.js";export default e();
