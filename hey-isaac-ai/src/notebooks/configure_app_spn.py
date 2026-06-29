@@ -1,17 +1,14 @@
 # Databricks notebook source
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.workspace import AclPermission
-import urllib.parse
 
 dbutils.widgets.text("principal", "")
 dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")
-dbutils.widgets.text("lakebase_project_id", "__unset__")
-dbutils.widgets.text("lakebase_branch_id", "__unset__")
+dbutils.widgets.text("lakebase_connection_string", "__unset__")
 
 principal = dbutils.widgets.get("principal")
 scope = dbutils.widgets.get("secret_scope_name")
-lakebase_project_id = dbutils.widgets.get("lakebase_project_id").strip()
-lakebase_branch_id = dbutils.widgets.get("lakebase_branch_id").strip()
+lakebase_connection_string = dbutils.widgets.get("lakebase_connection_string").strip()
 
 if not principal:
     raise ValueError("principal parameter is required (app SPN client_id)")
@@ -22,40 +19,11 @@ w = WorkspaceClient()
 w.secrets.put_acl(scope=scope, principal=principal, permission=AclPermission.READ)
 print("✓ App SPN now has READ on the configured secret scope")
 
-# 2. Grant Lakebase Postgres permissions (idempotent) when project/branch provided
-_lakebase_configured = (
-    lakebase_project_id and lakebase_project_id != "__unset__"
-    and lakebase_branch_id and lakebase_branch_id != "__unset__"
-)
-
-if _lakebase_configured:
+# 2. Grant Lakebase Postgres permissions (idempotent) when connection string provided
+if lakebase_connection_string and lakebase_connection_string != "__unset__":
     import psycopg2  # available on Databricks Runtime
 
-    # Resolve endpoint host via REST
-    ep_path = f"/api/2.0/postgres/projects/{lakebase_project_id}/branches/{lakebase_branch_id}/endpoints"
-    ep_list = w.api_client.do("GET", ep_path)
-    if not isinstance(ep_list, list) or not ep_list:
-        raise RuntimeError(
-            f"No Lakebase endpoints found for {lakebase_project_id}/{lakebase_branch_id}"
-        )
-    ep = ep_list[0]
-    host = ep["status"]["hosts"]["host"]
-    port = 5432
-
-    # Get token from notebook context (used as postgres password)
-    ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-    token = ctx.apiToken().get()
-
-    # Get current user name (postgres username)
-    me = w.current_user.me()
-    username = me.user_name  # e.g. "matthew.giglia@databricks.com"
-
-    conn_str = (
-        f"postgresql://{urllib.parse.quote(username, safe='')}:{urllib.parse.quote(token, safe='')}"
-        f"@{host}:{port}/databricks_postgres?sslmode=require"
-    )
-
-    conn = psycopg2.connect(conn_str)
+    conn = psycopg2.connect(lakebase_connection_string)
     try:
         conn.autocommit = True
         with conn.cursor() as cur:
@@ -86,4 +54,4 @@ if _lakebase_configured:
 
     print("✓ Lakebase Postgres SPN permissions configured")
 else:
-    print("⚠  lakebase_project_id / lakebase_branch_id not set — skipping Postgres grants")
+    print("⚠  lakebase_connection_string not set — skipping Postgres grants")
