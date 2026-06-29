@@ -9,7 +9,6 @@
 # COMMAND ----------
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.iam import SecretAclPermission
 
 dbutils.widgets.text("principal", "")           # type: ignore[name-defined]
 dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
@@ -23,6 +22,6 @@ if not principal:
 # COMMAND ----------
 
 w = WorkspaceClient()
-w.secrets.put_acl(scope=scope, principal=principal, permission=SecretAclPermission.READ)
+w.secrets.put_acl(scope=scope, principal=principal, permission='READ')
 
 print(f"✓ {principal} now has READ on scope '{scope}'")
