@@ -825,9 +825,8 @@ deploy_app_source() {
 
   log "Pushing source to container (source: ${APP_SOURCE_PATH})"
   databricks apps deploy "${APP_NAME}" \
-    --source-code-path "${APP_SOURCE_PATH}" \
-    --no-wait || fail "Source deployment failed."
-  ok "Source deployment initiated for ${APP_NAME}"
+    --source-code-path "${APP_SOURCE_PATH}" || fail "Source deployment failed."
+  ok "Source deployment complete for ${APP_NAME}"
 }
 
 # --------------------------------------------------------------------------- #
