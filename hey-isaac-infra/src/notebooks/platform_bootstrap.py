@@ -48,6 +48,72 @@ if missing:
 
 # COMMAND ----------
 
+# Schema DDL is now managed by TypeScript migrations in:
+# hey-isaac-ai/server/migrations/
+# Migrations run automatically on app startup via runMigrations() in server.ts.
+# Do not add DDL here — add a new numbered migration file instead.
+
+SEED_DEV_SQL = """
+-- Dev seed data — idempotent via ON CONFLICT DO NOTHING
+
+INSERT INTO projects (id, name, description)
+VALUES (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  'dev-hi-genie',
+  'Development project for Phase 0 MCP spike'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO project_members (project_id, user_id, role)
+VALUES (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  'matthew.giglia@databricks.com',
+  'owner'
+)
+ON CONFLICT (project_id, user_id) DO NOTHING;
+
+INSERT INTO agents (id, project_id, nickname, description, created_by)
+VALUES (
+  '00000000-0000-0000-0000-000000000002'::uuid,
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  'hi-genie',
+  'Phase 0 MCP spike agent',
+  'matthew.giglia@databricks.com'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO agent_grants (agent_id, user_id, granted_by)
+VALUES (
+  '00000000-0000-0000-0000-000000000002'::uuid,
+  'matthew.giglia@databricks.com',
+  'matthew.giglia@databricks.com'
+)
+ON CONFLICT (agent_id, user_id) DO NOTHING;
+"""
+
+_conn_str = lakebase_connection_string.strip()
+if not _conn_str or _conn_str == "__unset__":
+    print("⚠  lakebase_connection_string is empty or unset — skipping seed data.")
+    print("   Set the widget value to run seed data against Lakebase.")
+else:
+    import psycopg2  # available on Databricks Runtime
+
+    conn = psycopg2.connect(_conn_str)
+    try:
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            if target == "dev":
+                print("Executing dev seed data (target=dev)...")
+                cur.execute(SEED_DEV_SQL)
+                print("✓ Dev seed data applied")
+            else:
+                print(f"  Skipping seed data (target={target})")
+    finally:
+        conn.close()
+
+# COMMAND ----------
+
+
 print("\n✓ Platform bootstrap complete.")
 print(f"  Scope: {scope}")
 print(f"  Keys auto-provisioned: workspace_url")

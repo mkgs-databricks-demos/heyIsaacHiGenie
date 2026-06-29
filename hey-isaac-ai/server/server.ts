@@ -5,6 +5,11 @@ import { mcpRouter } from './routes/mcp.js';
 import { dcrRouter } from './routes/dcr.js';
 import { personaTokenRouter } from './routes/persona-token.js';
 import { wellKnownRouter } from './routes/well-known.js';
+import type { Db } from './db/index.js';
+import { runMigrations } from './migrations/migrate.js';
+import { SERVER_INFO } from './constants.js';
+
+export { SERVER_INFO };
 
 if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
   if (process.env.NODE_ENV === 'development') {
@@ -18,6 +23,15 @@ const AppKit = createApp({
   plugins: [server(), lakebase()],
 
   async onPluginsReady(appkit) {
+    const db = appkit.lakebase as unknown as Db;
+
+    try {
+      await runMigrations(db);
+    } catch (err) {
+      console.error('[startup] Migration failed — halting:', err);
+      throw err; // crash loudly; do not start with bad schema
+    }
+
     appkit.server.extend((app) => {
       app.use(express.json());
 
