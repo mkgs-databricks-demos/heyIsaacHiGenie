@@ -868,6 +868,11 @@ if [[ "${DEPLOY_INFRA}" == true ]]; then
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
     INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
   fi
+  # TODO(phase1): Wire lakebase_connection_string to infra bundle deploy args.
+  # The connection string requires Lakebase branch credentials that are injected
+  # at app runtime. For now, platform_bootstrap.py receives an empty string and
+  # skips DDL execution if lakebase_connection_string is empty or '__unset__'.
+  # INFRA_DEPLOY_ARGS will be updated once the Lakebase connection string pattern is confirmed.
   deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
 fi
 

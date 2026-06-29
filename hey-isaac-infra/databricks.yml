@@ -59,6 +59,18 @@ variables:
   tags_RemoveAfter:
     default: 2027-06-30
     description: Required demo-environment expiry tag.
+  lakebase_connection_string:
+    description: >
+      Postgres connection string for the Lakebase branch. Required by the platform
+      bootstrap job to execute DDL against Lakebase. Override via
+      --var lakebase_connection_string=... at deploy time. The connection string
+      requires Lakebase branch credentials injected at app runtime — see deploy.sh
+      TODO(phase1) comment for context. Platform bootstrap skips DDL when value is
+      empty or '__unset__'.
+    default: "__unset__"
+  target:
+    description: Deployment target name (dev, staging, prod). Passed to platform bootstrap for seed-data gating.
+    default: dev
 
 targets:
 

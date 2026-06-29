@@ -1,62 +1,3 @@
-# Databricks notebook source
-# MAGIC %md
-# MAGIC ## Hey Isaac / Hi Genie — Platform Bootstrap
-# MAGIC
-# MAGIC Stores `workspace_url` in the secret scope and validates admin-provisioned secrets.
-# MAGIC Also executes Lakebase DDL (schema + seed) when `lakebase_connection_string` is set.
-# MAGIC Run once after the infra bundle deploys, before deploying the app bundle.
-
-# COMMAND ----------
-
-from databricks.sdk import WorkspaceClient
-
-dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
-dbutils.widgets.text("lakebase_connection_string", "__unset__")  # type: ignore[name-defined]
-dbutils.widgets.text("target", "dev")  # type: ignore[name-defined]
-
-scope = dbutils.widgets.get("secret_scope_name")  # type: ignore[name-defined]
-lakebase_connection_string = dbutils.widgets.get("lakebase_connection_string")  # type: ignore[name-defined]
-target = dbutils.widgets.get("target")  # type: ignore[name-defined]
-
-w = WorkspaceClient()
-
-# COMMAND ----------
-
-# Store workspace URL (auto-provisioned)
-workspace_url = spark.conf.get("spark.databricks.workspaceUrl")  # type: ignore[name-defined]
-w.secrets.put_secret(scope=scope, key="workspace_url", string_value=f"https://{workspace_url}")
-print(f"✓ workspace_url stored: https://{workspace_url}")
-
-# COMMAND ----------
-
-# Validate admin-provisioned secrets
-ADMIN_KEYS = ["jwt_signing_key"]
-
-existing = {s.key for s in w.secrets.list_secrets(scope=scope)}
-missing = [k for k in ADMIN_KEYS if k not in existing]
-
-for k in ADMIN_KEYS:
-    mark = "✓" if k in existing else "✗ MISSING"
-    print(f"  {mark}  {k}")
-
-if missing:
-    instructions = "\n".join(
-        f"  databricks secrets put-secret {scope} {k} --string-value <value>"
-        for k in missing
-    )
-    raise SystemExit(
-        f"\nAdmin secrets not provisioned. Provision them then re-run:\n"
-        f"  ./deploy.sh --target dev --app\n\n"
-        f"Commands:\n{instructions}\n\n"
-        f"Generate jwt_signing_key:\n"
-        f"  openssl rand -base64 64"
-    )
-
-# COMMAND ----------
-
-# Execute Lakebase DDL — skipped if lakebase_connection_string is empty or '__unset__'
-
-SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 1. projects
@@ -69,6 +10,7 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 -- 2. project_members
+-- email case normalization enforced by CHECK
 CREATE TABLE IF NOT EXISTS project_members (
   project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id     TEXT NOT NULL,
@@ -94,6 +36,7 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 -- 4. agent_grants
+-- email case normalization enforced by CHECK
 CREATE TABLE IF NOT EXISTS agent_grants (
   agent_id    UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   user_id     TEXT NOT NULL,
@@ -105,6 +48,7 @@ CREATE TABLE IF NOT EXISTS agent_grants (
 );
 
 -- 5. tasks
+-- assignee_agent_id is UUID FK → agents(id)
 CREATE TABLE IF NOT EXISTS tasks (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id        UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -120,6 +64,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 -- 6. threads
+-- task_id FK is DEFERRABLE INITIALLY DEFERRED
 CREATE TABLE IF NOT EXISTS threads (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id     UUID REFERENCES tasks(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
@@ -132,6 +77,8 @@ CREATE TABLE IF NOT EXISTS threads (
 );
 
 -- 7. messages
+-- to_agent_id is UUID FK → agents(id)
+-- XOR CHECK: exactly one of author_user_id or parent_agent_id must be set
 CREATE TABLE IF NOT EXISTS messages (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id        UUID NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
@@ -147,6 +94,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- 8. session_summaries
+-- Same authorship XOR CHECK as messages
 CREATE TABLE IF NOT EXISTS session_summaries (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id        UUID NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
@@ -169,6 +117,7 @@ CREATE TABLE IF NOT EXISTS repo_config (
 );
 
 -- 10. agent_checkout_spec
+-- clone_mode CHECK + coherence CHECK (worktree_path required when clone_mode='worktree')
 CREATE TABLE IF NOT EXISTS agent_checkout_spec (
   agent_id       UUID PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
   clone_mode     TEXT NOT NULL DEFAULT 'worktree',
@@ -185,6 +134,7 @@ CREATE TABLE IF NOT EXISTS agent_checkout_spec (
 );
 
 -- 11. pull_requests
+-- at least one of thread_id or task_id must be set
 CREATE TABLE IF NOT EXISTS pull_requests (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id     UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -202,7 +152,7 @@ CREATE TABLE IF NOT EXISTS pull_requests (
   CHECK (opened_by = lower(opened_by))
 );
 
--- 12. dcr_clients
+-- 12. dcr_clients (Phase 1: DB-backed DCR replaces in-memory Map)
 CREATE TABLE IF NOT EXISTS dcr_clients (
   client_id           TEXT PRIMARY KEY,
   client_secret_hash  TEXT NOT NULL,
@@ -216,7 +166,7 @@ CREATE TABLE IF NOT EXISTS dcr_clients (
   CHECK (owner_user_id = lower(owner_user_id))
 );
 
--- 13. persona_token_jti
+-- 13. persona_token_jti (Phase 1: jti persistence for replay prevention)
 CREATE TABLE IF NOT EXISTS persona_token_jti (
   jti         TEXT PRIMARY KEY,
   human       TEXT NOT NULL,
@@ -245,84 +195,3 @@ CREATE INDEX IF NOT EXISTS idx_dcr_clients_owner ON dcr_clients(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_dcr_clients_project ON dcr_clients(project_id);
 CREATE INDEX IF NOT EXISTS idx_jti_expires ON persona_token_jti(expires_at);
 CREATE INDEX IF NOT EXISTS idx_jti_human ON persona_token_jti(human);
-"""
-
-SEED_DEV_SQL = """
--- Dev seed data — idempotent via ON CONFLICT DO NOTHING
-
-INSERT INTO projects (id, name, description)
-VALUES (
-  '00000000-0000-0000-0000-000000000001'::uuid,
-  'dev-hi-genie',
-  'Development project for Phase 0 MCP spike'
-)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO project_members (project_id, user_id, role)
-VALUES (
-  '00000000-0000-0000-0000-000000000001'::uuid,
-  'matthew.giglia@databricks.com',
-  'owner'
-)
-ON CONFLICT (project_id, user_id) DO NOTHING;
-
-INSERT INTO agents (id, project_id, nickname, description, created_by)
-VALUES (
-  '00000000-0000-0000-0000-000000000002'::uuid,
-  '00000000-0000-0000-0000-000000000001'::uuid,
-  'hi-genie',
-  'Phase 0 MCP spike agent',
-  'matthew.giglia@databricks.com'
-)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO agent_grants (agent_id, user_id, granted_by)
-VALUES (
-  '00000000-0000-0000-0000-000000000002'::uuid,
-  'matthew.giglia@databricks.com',
-  'matthew.giglia@databricks.com'
-)
-ON CONFLICT (agent_id, user_id) DO NOTHING;
-"""
-
-_conn_str = lakebase_connection_string.strip()
-if not _conn_str or _conn_str == "__unset__":
-    print("⚠  lakebase_connection_string is empty or unset — skipping DDL execution.")
-    print("   Set the widget value to run DDL against Lakebase.")
-else:
-    import psycopg2  # available on Databricks Runtime
-
-    conn = psycopg2.connect(_conn_str)
-    try:
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            print("Executing schema DDL...")
-            cur.execute(SCHEMA_SQL)
-            print("✓ Schema DDL applied (13 tables + indexes)")
-
-            if target == "dev":
-                print("Executing dev seed data (target=dev)...")
-                cur.execute(SEED_DEV_SQL)
-                print("✓ Dev seed data applied")
-            else:
-                print(f"  Skipping seed data (target={target})")
-
-            # Report tables created
-            cur.execute("""
-                SELECT tablename FROM pg_tables
-                WHERE schemaname = 'public'
-                ORDER BY tablename
-            """)
-            tables = [row[0] for row in cur.fetchall()]
-            print(f"\nTables in public schema ({len(tables)}):")
-            for t in tables:
-                print(f"  ✓ {t}")
-    finally:
-        conn.close()
-
-# COMMAND ----------
-
-print("\n✓ Platform bootstrap complete.")
-print(f"  Scope: {scope}")
-print(f"  Keys auto-provisioned: workspace_url")
-print(f"  Keys admin-provisioned: {', '.join(ADMIN_KEYS)}")
