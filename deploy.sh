@@ -787,14 +787,20 @@ except: pass
 run_configure_app_spn() {
   [[ -z "${APP_SPN_CLIENT_ID}" ]] && { warn "No app SPN — skipping scope ACL step."; return 0; }
   local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
-  log "Configuring app SPN scope access (job: ${CONFIGURE_APP_SPN_JOB})"
+  log "Configuring app SPN permissions (job: ${CONFIGURE_APP_SPN_JOB})"
+
+  # Build lakebase params (pass project/branch so notebook can grant Postgres permissions)
+  local lb_project="__unset__" lb_branch="__unset__"
+  [[ -n "${LAKEBASE_PROJECT_ID}" ]] && lb_project="${LAKEBASE_PROJECT_ID}"
+  [[ -n "${LAKEBASE_BRANCH_ID}" ]]  && lb_branch="${LAKEBASE_BRANCH_ID}"
+
   (cd_bundle "${bundle_dir}" && databricks bundle run "${CONFIGURE_APP_SPN_JOB}" \
     --target "${TARGET}" \
     "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}" \
-    --params "principal=${APP_SPN_CLIENT_ID}") || {
-    warn "Scope ACL job failed — app may not be able to read secrets."; return 0;
+    --params "principal=${APP_SPN_CLIENT_ID},lakebase_project_id=${lb_project},lakebase_branch_id=${lb_branch}") || {
+    warn "Scope ACL / Postgres grants job failed — app may not be able to read secrets or run migrations."; return 0;
   }
-  ok "App SPN scope access configured"
+  ok "App SPN permissions configured (scope ACL + Postgres grants)"
 }
 
 # --------------------------------------------------------------------------- #
