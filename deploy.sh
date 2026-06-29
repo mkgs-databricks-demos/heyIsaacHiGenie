@@ -787,14 +787,60 @@ except: pass
 run_configure_app_spn() {
   [[ -z "${APP_SPN_CLIENT_ID}" ]] && { warn "No app SPN — skipping scope ACL step."; return 0; }
   local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
-  log "Configuring app SPN scope access (job: ${CONFIGURE_APP_SPN_JOB})"
+  log "Configuring app SPN permissions (job: ${CONFIGURE_APP_SPN_JOB})"
+
+  # Build lakebase_connection_string so the job can apply Postgres SPN grants.
+  # Follows the same pattern as platform_bootstrap.py: the caller builds the full
+  # connection string using the deployer's OAuth token; the notebook just connects.
+  local lb_conn_str="__unset__"
+  if [[ -n "${LAKEBASE_PROJECT_ID}" && -n "${LAKEBASE_BRANCH_ID}" ]]; then
+    local _token _host _user _user_enc _token_enc
+    _token=$(databricks auth token --output json 2>/dev/null \
+      | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null) || _token=""
+    _host=$(databricks postgres list-endpoints \
+      "projects/${LAKEBASE_PROJECT_ID}/branches/${LAKEBASE_BRANCH_ID}" \
+      --output json 2>/dev/null \
+      | python3 -c "
+import sys, json
+eps = json.load(sys.stdin)
+if isinstance(eps, dict): eps = eps.get('endpoints', eps.get('items', []))
+print(eps[0]['status']['hosts']['host'] if eps else '')
+" 2>/dev/null) || _host=""
+    _user=$(databricks auth describe --output json 2>/dev/null \
+      | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('details', {}).get('userName', '') or d.get('userName', '') or d.get('user', {}).get('name', ''))
+" 2>/dev/null) || _user=""
+
+    if [[ -n "${_token}" && -n "${_host}" && -n "${_user}" ]]; then
+      _user_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_user}")
+      _token_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_token}")
+      lb_conn_str="postgresql://${_user_enc}:${_token_enc}@${_host}:5432/databricks_postgres?sslmode=require"
+      log "Lakebase connection string resolved — Postgres SPN grants will be applied"
+    else
+      fail "Lakebase is configured (LAKEBASE_PROJECT_ID/BRANCH_ID set) but credentials could not be resolved (token=${_token:+set}, host=${_host:-unset}, user=${_user:-unset}). Cannot apply Postgres SPN grants — aborting deploy."
+    fi
+  fi
+
+  local job_failed=0
   (cd_bundle "${bundle_dir}" && databricks bundle run "${CONFIGURE_APP_SPN_JOB}" \
     --target "${TARGET}" \
     "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}" \
-    --params "principal=${APP_SPN_CLIENT_ID}") || {
-    warn "Scope ACL job failed — app may not be able to read secrets."; return 0;
-  }
-  ok "App SPN scope access configured"
+    --params "principal=${APP_SPN_CLIENT_ID},lakebase_connection_string=${lb_conn_str}") || job_failed=1
+
+  if [[ ${job_failed} -eq 1 ]]; then
+    if [[ "${lb_conn_str}" != "__unset__" ]]; then
+      # Postgres grants were attempted — hard fail so migrations don't silently break
+      fail "App SPN permissions job failed — Postgres grants not applied. Migrations will not run. Fix and re-deploy."
+    else
+      # Scope-ACL-only run; keep the original warn-and-continue behaviour
+      warn "Scope ACL job failed — app may not be able to read secrets."
+      return 0
+    fi
+  fi
+
+  ok "App SPN permissions configured (scope ACL + Postgres grants)"
 }
 
 # --------------------------------------------------------------------------- #

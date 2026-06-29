@@ -1,6 +1,7 @@
-# Ensures the app's auto-provisioned SPN has READ on the secret scope.
+# Ensures the app's auto-provisioned SPN has READ on the secret scope and has
+# the required Lakebase Postgres permissions (GRANT ALL ON SCHEMA public, etc.).
 # Run by deploy.sh after the app bundle deploys and the SPN is known.
-# Idempotent — put_acl is an upsert.
+# Idempotent — put_acl is an upsert; SQL GRANTs are safe to re-run.
 
 resources:
   jobs:
@@ -11,6 +12,8 @@ resources:
           default: ""
         - name: secret_scope_name
           default: ${var.secret_scope_name}
+        - name: lakebase_connection_string
+          default: "__unset__"
       tasks:
         - task_key: configure_spn
           notebook_task:
@@ -18,6 +21,7 @@ resources:
             base_parameters:
               principal: "{{job.parameters.principal}}"
               secret_scope_name: ${var.secret_scope_name}
+              lakebase_connection_string: "{{job.parameters.lakebase_connection_string}}"
           environment_key: serverless
       environments:
         - environment_key: serverless
