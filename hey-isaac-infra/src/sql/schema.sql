@@ -172,10 +172,12 @@ CREATE TABLE IF NOT EXISTS persona_token_jti (
   human       TEXT NOT NULL,
   persona     TEXT NOT NULL,
   project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+  agent_id    TEXT,
   issued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at  TIMESTAMPTZ NOT NULL,
   CHECK (human = lower(human))
 );
+ALTER TABLE persona_token_jti ADD COLUMN IF NOT EXISTS agent_id TEXT;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id);
