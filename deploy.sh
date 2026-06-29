@@ -787,6 +787,7 @@ run_configure_app_spn() {
   log "Configuring app SPN scope access (job: ${CONFIGURE_APP_SPN_JOB})"
   (cd_bundle "${bundle_dir}" && databricks bundle run "${CONFIGURE_APP_SPN_JOB}" \
     --target "${TARGET}" \
+    "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}" \
     --params "principal=${APP_SPN_CLIENT_ID}") || {
     warn "Scope ACL job failed — app may not be able to read secrets."; return 0;
   }
@@ -835,7 +836,7 @@ deploy_app_source() {
 run_post_deploy_validation() {
   local bundle_dir="${SCRIPT_DIR}/${APP_BUNDLE}"
   log "Running post-deploy validation"
-  (cd_bundle "${bundle_dir}" && databricks bundle run "${POST_DEPLOY_VALIDATION_JOB}" --target "${TARGET}") || {
+  (cd_bundle "${bundle_dir}" && databricks bundle run "${POST_DEPLOY_VALIDATION_JOB}" --target "${TARGET}" "${APP_DEPLOY_ARGS[@]+${APP_DEPLOY_ARGS[@]}}") || {
     warn "Post-deploy validation FAILED — check the job run for details."; return 1;
   }
   ok "Post-deploy validation passed"
