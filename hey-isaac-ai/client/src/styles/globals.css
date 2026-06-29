@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --db-red: #FF3621;
+  --db-navy: #1B3139;
+  --db-cream: #FDF6EC;
+  --db-gold: #F4A100;
+  --db-magenta: #C4003C;
+  --db-surface: #FFFFFF;
+  --db-border: #E8DDD0;
+  --db-text: #1B3139;
+  --db-text-muted: #6B7280;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--db-cream);
+  color: var(--db-navy);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.display-font {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+}
+
+.retro-card {
+  border: 2px solid var(--db-border);
+  border-radius: 12px;
+  background: var(--db-surface);
+  box-shadow: 4px 4px 0 var(--db-border);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.retro-card:hover {
+  box-shadow: 6px 6px 0 var(--db-red);
+  border-color: var(--db-red);
+}
+
+.sparkle {
+  color: var(--db-gold);
+}
