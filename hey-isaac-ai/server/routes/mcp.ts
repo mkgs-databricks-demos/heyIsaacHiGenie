@@ -7,10 +7,12 @@ import { createRequirePersona } from '../middleware/auth.js';
 import { registerTools } from '../mcp/tools.js';
 import type { Db } from '../db/index.js';
 import { SERVER_INFO } from '../constants.js';
+import { databricksRealIpKeyGenerator } from '../utils/rate-limit.js';
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  keyGenerator: databricksRealIpKeyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
 });

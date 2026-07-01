@@ -3,10 +3,12 @@ import rateLimit from 'express-rate-limit';
 import { randomUUID, createHash } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import type { DcrClient } from '../../src/db/types.js';
+import { databricksRealIpKeyGenerator } from '../utils/rate-limit.js';
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
+  keyGenerator: databricksRealIpKeyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
 });
