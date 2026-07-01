@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react';
+import Header from './components/Header';
+import Sidebar from './components/Sidebar';
+import LoadingView from './components/LoadingView';
+import ProjectView from './components/ProjectView';
+import ChatView from './components/ChatView';
+import type { Identity, View, Thread, AgentConfig } from './lib/types';
 
-interface Identity {
-  email: string;
-  oboHeaders: Record<string, string>;
-}
+const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
 
-interface PersonaToken {
+const AGENTS: AgentConfig[] = [
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    persona: 'genie',
+    label: 'Genie',
+    color: '#FF3621',
+  },
+];
+
+interface PersonaTokenResponse {
   token: string;
   persona: string;
   project_id: string;
@@ -14,70 +26,130 @@ interface PersonaToken {
 
 export default function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
-  const [personaToken, setPersonaToken] = useState<PersonaToken | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [issuing, setIssuing] = useState(false);
+  const [personaToken, setPersonaToken] = useState<string | null>(null);
+  const [view, setView] = useState<View>({ kind: 'loading' });
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/me')
-      .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.error)))
-      .then(setIdentity)
-      .catch(e => setError(String(e)));
+    async function init() {
+      try {
+        // Step 1: Get OBO identity
+        const meRes = await fetch('/api/me');
+        if (!meRes.ok) {
+          const body = await meRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(body.error ?? `Identity fetch failed (${meRes.status})`);
+        }
+        const me = await meRes.json() as Identity;
+        setIdentity(me);
+
+        // Step 2: Get persona token for the genie agent
+        const tokenRes = await fetch('/token/persona', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ persona: 'genie', project_id: PROJECT_ID }),
+        });
+        if (!tokenRes.ok) {
+          const body = await tokenRes.json().catch(() => ({})) as { message?: string; error?: string };
+          throw new Error(body.message ?? body.error ?? `Token fetch failed (${tokenRes.status})`);
+        }
+        const tokenData = await tokenRes.json() as PersonaTokenResponse;
+        setPersonaToken(tokenData.token);
+        setView({ kind: 'project' });
+      } catch (e) {
+        setInitError(e instanceof Error ? e.message : String(e));
+        setView({ kind: 'project' }); // Show partial UI even on error
+      }
+    }
+
+    void init();
   }, []);
 
-  async function issuePersonaToken() {
-    setIssuing(true);
-    try {
-      const r = await fetch('/token/persona', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ persona: 'Genie', project_id: 'spike-test' }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message ?? data.error);
-      setPersonaToken(data as PersonaToken);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setIssuing(false);
-    }
+  function handleStartThread(thread: Thread, agentId: string) {
+    setThreads(prev => [...prev, thread]);
+    setView({
+      kind: 'chat',
+      threadId: thread.id,
+      agentId,
+      threadTitle: thread.title ?? 'Untitled thread',
+    });
   }
 
-  const styles: Record<string, React.CSSProperties> = {
-    root: { fontFamily: 'monospace', padding: 32, maxWidth: 720, margin: '0 auto' },
-    h1: { marginBottom: 4 },
-    section: { marginTop: 24, padding: 16, border: '1px solid #ccc', borderRadius: 6 },
-    label: { fontWeight: 'bold', marginBottom: 8, display: 'block' },
-    pre: { background: '#f4f4f4', padding: 12, borderRadius: 4, overflowX: 'auto' },
-    error: { color: 'crimson', marginTop: 8 },
-    btn: { marginTop: 12, padding: '8px 16px', cursor: 'pointer' },
-  };
+  function handleNavigateChat(thread: Thread, agentId: string) {
+    setView({
+      kind: 'chat',
+      threadId: thread.id,
+      agentId,
+      threadTitle: thread.title ?? 'Untitled thread',
+    });
+  }
+
+  if (view.kind === 'loading') {
+    return <LoadingView />;
+  }
 
   return (
-    <div style={styles.root}>
-      <h1 style={styles.h1}>Hey Isaac? Hi Genie!</h1>
-      <p>Auth spike — OBO identity + persona token round-trip</p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <Header identity={identity} />
 
-      {error && <p style={styles.error}>Error: {error}</p>}
+      {initError && (
+        <div
+          style={{
+            background: 'rgba(255,54,33,0.08)',
+            borderBottom: '1px solid rgba(255,54,33,0.3)',
+            padding: '8px 24px',
+            fontSize: 13,
+            color: 'var(--db-red)',
+          }}
+        >
+          ⚠ {initError}
+        </div>
+      )}
 
-      <div style={styles.section}>
-        <span style={styles.label}>OBO Identity (/api/me)</span>
-        {identity
-          ? <pre style={styles.pre}>{JSON.stringify(identity, null, 2)}</pre>
-          : <p>Loading…</p>}
-      </div>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Sidebar
+          identity={identity}
+          threads={threads}
+          view={view}
+          agents={AGENTS}
+          onNavigateProject={() => setView({ kind: 'project' })}
+          onNavigateChat={handleNavigateChat}
+        />
 
-      <div style={styles.section}>
-        <span style={styles.label}>Persona Token (/token/persona)</span>
-        <button style={styles.btn} onClick={issuePersonaToken} disabled={issuing}>
-          {issuing ? 'Issuing…' : 'Issue token for persona=Genie, project=spike-test'}
-        </button>
-        {personaToken && (
-          <pre style={styles.pre}>{JSON.stringify(
-            { ...personaToken, token: personaToken.token.slice(0, 40) + '…' },
-            null, 2
-          )}</pre>
-        )}
+        <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {view.kind === 'project' && personaToken && (
+            <ProjectView
+              agents={AGENTS}
+              personaToken={personaToken}
+              onStartThread={handleStartThread}
+            />
+          )}
+
+          {view.kind === 'project' && !personaToken && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                color: 'var(--db-text-muted)',
+                fontSize: 14,
+              }}
+            >
+              Waiting for persona token…
+            </div>
+          )}
+
+          {view.kind === 'chat' && personaToken && (
+            <ChatView
+              threadId={view.threadId}
+              agentId={view.agentId}
+              threadTitle={view.threadTitle}
+              personaToken={personaToken}
+              onBack={() => setView({ kind: 'project' })}
+            />
+          )}
+        </main>
       </div>
     </div>
   );

@@ -1,0 +1,223 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --db-red: #FF3621;
+  --db-navy: #1B3139;
+  --db-cream: #FDF6EC;
+  --db-gold: #F4A100;
+  --db-magenta: #C4003C;
+  --db-surface: #FFFFFF;
+  --db-border: #E8DDD0;
+  --db-text: #1B3139;
+  --db-text-muted: #6B7280;
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: var(--db-cream);
+  --foreground: var(--db-navy);
+  --card: var(--db-surface);
+  --card-foreground: var(--db-navy);
+  --popover: var(--db-surface);
+  --popover-foreground: var(--db-navy);
+  --primary: var(--db-red);
+  --primary-foreground: var(--db-surface);
+  --secondary: var(--db-cream);
+  --secondary-foreground: var(--db-navy);
+  --muted: #F7EBDD;
+  --muted-foreground: var(--db-text-muted);
+  --accent: var(--db-gold);
+  --accent-foreground: var(--db-navy);
+  --destructive: var(--db-magenta);
+  --destructive-foreground: var(--db-surface);
+  --success: #0E7C66;
+  --success-foreground: var(--db-surface);
+  --warning: var(--db-gold);
+  --warning-foreground: var(--db-navy);
+  --border: var(--db-border);
+  --input: var(--db-border);
+  --ring: var(--db-red);
+  --chart-cat-1: var(--db-red);
+  --chart-cat-2: var(--db-navy);
+  --chart-cat-3: var(--db-gold);
+  --chart-cat-4: var(--db-magenta);
+  --chart-cat-5: #0E7C66;
+  --chart-cat-6: #B55D00;
+  --chart-cat-7: #6F4E7C;
+  --chart-cat-8: #4A6F78;
+  --chart-seq-1: #FFF8EF;
+  --chart-seq-2: #FCE7CF;
+  --chart-seq-3: #F8D1A4;
+  --chart-seq-4: #F4A100;
+  --chart-seq-5: #E36B2C;
+  --chart-seq-6: #FF3621;
+  --chart-seq-7: #C4003C;
+  --chart-seq-8: #1B3139;
+  --chart-div-1: #1B3139;
+  --chart-div-2: #4A6F78;
+  --chart-div-3: #A8C2C4;
+  --chart-div-4: #F7EBDD;
+  --chart-div-5: #FCE7CF;
+  --chart-div-6: #F4A100;
+  --chart-div-7: #FF3621;
+  --chart-div-8: #C4003C;
+  --chart-1: var(--chart-cat-1);
+  --chart-2: var(--chart-cat-2);
+  --chart-3: var(--chart-cat-3);
+  --chart-4: var(--chart-cat-4);
+  --chart-5: var(--chart-cat-5);
+  --chart-6: var(--chart-cat-6);
+  --chart-7: var(--chart-cat-7);
+  --chart-8: var(--chart-cat-8);
+  --sidebar: var(--db-navy);
+  --sidebar-foreground: var(--db-cream);
+  --sidebar-primary: var(--db-red);
+  --sidebar-primary-foreground: var(--db-surface);
+  --sidebar-accent: rgba(253, 246, 236, 0.12);
+  --sidebar-accent-foreground: var(--db-cream);
+  --sidebar-border: rgba(253, 246, 236, 0.18);
+  --sidebar-ring: var(--db-gold);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --radius: 0.75rem;
+    --background: var(--db-cream);
+    --foreground: var(--db-navy);
+    --card: var(--db-surface);
+    --card-foreground: var(--db-navy);
+    --popover: var(--db-surface);
+    --popover-foreground: var(--db-navy);
+    --primary: var(--db-red);
+    --primary-foreground: var(--db-surface);
+    --secondary: var(--db-cream);
+    --secondary-foreground: var(--db-navy);
+    --muted: #F7EBDD;
+    --muted-foreground: var(--db-text-muted);
+    --accent: var(--db-gold);
+    --accent-foreground: var(--db-navy);
+    --destructive: var(--db-magenta);
+    --destructive-foreground: var(--db-surface);
+    --success: #0E7C66;
+    --success-foreground: var(--db-surface);
+    --warning: var(--db-gold);
+    --warning-foreground: var(--db-navy);
+    --border: var(--db-border);
+    --input: var(--db-border);
+    --ring: var(--db-red);
+    --chart-cat-1: var(--db-red);
+    --chart-cat-2: var(--db-navy);
+    --chart-cat-3: var(--db-gold);
+    --chart-cat-4: var(--db-magenta);
+    --chart-cat-5: #0E7C66;
+    --chart-cat-6: #B55D00;
+    --chart-cat-7: #6F4E7C;
+    --chart-cat-8: #4A6F78;
+    --chart-seq-1: #FFF8EF;
+    --chart-seq-2: #FCE7CF;
+    --chart-seq-3: #F8D1A4;
+    --chart-seq-4: #F4A100;
+    --chart-seq-5: #E36B2C;
+    --chart-seq-6: #FF3621;
+    --chart-seq-7: #C4003C;
+    --chart-seq-8: #1B3139;
+    --chart-div-1: #1B3139;
+    --chart-div-2: #4A6F78;
+    --chart-div-3: #A8C2C4;
+    --chart-div-4: #F7EBDD;
+    --chart-div-5: #FCE7CF;
+    --chart-div-6: #F4A100;
+    --chart-div-7: #FF3621;
+    --chart-div-8: #C4003C;
+    --chart-1: var(--chart-cat-1);
+    --chart-2: var(--chart-cat-2);
+    --chart-3: var(--chart-cat-3);
+    --chart-4: var(--chart-cat-4);
+    --chart-5: var(--chart-cat-5);
+    --chart-6: var(--chart-cat-6);
+    --chart-7: var(--chart-cat-7);
+    --chart-8: var(--chart-cat-8);
+    --sidebar: var(--db-navy);
+    --sidebar-foreground: var(--db-cream);
+    --sidebar-primary: var(--db-red);
+    --sidebar-primary-foreground: var(--db-surface);
+    --sidebar-accent: rgba(253, 246, 236, 0.12);
+    --sidebar-accent-foreground: var(--db-cream);
+    --sidebar-border: rgba(253, 246, 236, 0.18);
+    --sidebar-ring: var(--db-gold);
+  }
+}
+
+.dark {
+  --background: var(--db-navy);
+  --foreground: var(--db-cream);
+  --card: #243F48;
+  --card-foreground: var(--db-cream);
+  --popover: #243F48;
+  --popover-foreground: var(--db-cream);
+  --primary: var(--db-red);
+  --primary-foreground: var(--db-surface);
+  --secondary: rgba(253, 246, 236, 0.12);
+  --secondary-foreground: var(--db-cream);
+  --muted: rgba(253, 246, 236, 0.12);
+  --muted-foreground: #D8CFC3;
+  --accent: var(--db-gold);
+  --accent-foreground: var(--db-navy);
+  --destructive: var(--db-magenta);
+  --destructive-foreground: var(--db-surface);
+  --success: #36A88C;
+  --success-foreground: var(--db-navy);
+  --warning: var(--db-gold);
+  --warning-foreground: var(--db-navy);
+  --border: rgba(253, 246, 236, 0.2);
+  --input: rgba(253, 246, 236, 0.25);
+  --ring: var(--db-gold);
+  --sidebar: #14262D;
+  --sidebar-foreground: var(--db-cream);
+  --sidebar-primary: var(--db-red);
+  --sidebar-primary-foreground: var(--db-surface);
+  --sidebar-accent: rgba(253, 246, 236, 0.12);
+  --sidebar-accent-foreground: var(--db-cream);
+  --sidebar-border: rgba(253, 246, 236, 0.18);
+  --sidebar-ring: var(--db-gold);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--db-cream);
+  color: var(--db-navy);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.display-font {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+}
+
+.retro-card {
+  border: 2px solid var(--db-border);
+  border-radius: 12px;
+  background: var(--db-surface);
+  box-shadow: 4px 4px 0 var(--db-border);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.retro-card:hover {
+  box-shadow: 6px 6px 0 var(--db-red);
+  border-color: var(--db-red);
+}
+
+.sparkle {
+  color: var(--db-gold);
+}
