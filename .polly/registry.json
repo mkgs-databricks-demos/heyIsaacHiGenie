@@ -2,7 +2,7 @@
   "tasks": [
     {
       "id": "dabs-parameterization",
-      "title": "DABs parameterization — remove hard-coded identity, auto-resolve from CLI profile",
+      "title": "DABs parameterization \u2014 remove hard-coded identity, auto-resolve from CLI profile",
       "branch": "polly/dabs-parameterization",
       "worktree": ".worktrees/dabs-parameterization",
       "agent": "claude_code",
@@ -25,7 +25,7 @@
     },
     {
       "id": "auth-security-hardening",
-      "title": "Auth/security hardening — JWT issuer env var, aud+jti, DCR guard, dev-only logs",
+      "title": "Auth/security hardening \u2014 JWT issuer env var, aud+jti, DCR guard, dev-only logs",
       "branch": "polly/auth-security-hardening",
       "agent": "codex",
       "worktree": ".worktrees/auth-security-hardening",
@@ -46,9 +46,9 @@
       ],
       "follow_ups": [
         "Operator must set HI_GENIE_PERSONA_ISSUER to the live app URL after first deploy",
-        "DCR GET /:client_id endpoint is unauthenticated — document as intentional or add shared-secret guard (Phase 2)",
-        "Consider timing-safe comparison for DCR shared-secret (crypto.timingSafeEqual) — Phase 2",
-        "Log/warn when persona token is presented but issuer is unconfigured — Phase 2"
+        "DCR GET /:client_id endpoint is unauthenticated \u2014 document as intentional or add shared-secret guard (Phase 2)",
+        "Consider timing-safe comparison for DCR shared-secret (crypto.timingSafeEqual) \u2014 Phase 2",
+        "Log/warn when persona token is presented but issuer is unconfigured \u2014 Phase 2"
       ]
     },
     {
@@ -74,6 +74,123 @@
       "agent": "codex",
       "status": "merged",
       "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/5"
+    },
+    {
+      "id": "cleanup-registry-gitignore",
+      "title": "chore: update .polly registry (all PRs merged) + gitignore .worktrees",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/6"
+    },
+    {
+      "id": "fix-notebook-paths",
+      "title": "fix(dabs): correct notebook_path in all resource YAMLs",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/7"
+    },
+    {
+      "id": "shared-dev-lakebase-branches",
+      "title": "feat(dabs): shared dev Lakebase project + per-developer branches (Option B)",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/8",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "fix-pr9-lakebase-rebase",
+      "title": "fix: create Lakebase branches via REST API (rebase of #9)",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/10",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "bundle-vars-multi-target",
+      "title": "feat(dabs): bundle vars + per-target secret scope isolation + persona-issuer valueFrom secret",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/11",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "oauth-authorization-server-discovery",
+      "title": "feat: RFC 8414 /.well-known/oauth-authorization-server endpoint (DCR discovery)",
+      "agent": "claude_code",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/13",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "wire-infra-schema-to-app-bundle",
+      "title": "fix(dabs): thread infra bundle's resolved schema into app bundle instead of re-deriving",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/14",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "fix-resolve-user-handle-userName-key",
+      "title": "fix(deploy): resolve_user_handle uses SCIM 'userName' key, not 'user_name'",
+      "agent": "codex",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/15"
+    },
+    {
+      "id": "wire-spn-postgres-grants",
+      "title": "feat: wire SPN Postgres schema/default-privilege grants into deploy.sh via configure_app_spn job",
+      "agent": "claude_code",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/20",
+      "reviewer": "codex",
+      "review_verdict": "PASS"
+    },
+    {
+      "id": "phase1-react-frontend",
+      "title": "feat: Phase 1 React frontend \u2014 Hi Genie retro UI (Databricks branding, Tailwind + AppKit UI theme)",
+      "agent": "claude_code",
+      "status": "merged",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/21",
+      "reviewer": "claude_code",
+      "review_verdict": "PASS"
     }
-  ]
+  ],
+  "phase1": {
+    "trackA": {
+      "status": "merged",
+      "pr": 16,
+      "description": "13-table Lakebase DDL + TypeScript types",
+      "branch": "feat/phase1-lakebase-schema"
+    },
+    "trackB": {
+      "status": "review-passed",
+      "pr": 17,
+      "url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/17",
+      "description": "App-layer: DB-backed DCR + JTI + persona authority + 12 MCP tools + fail-closed middleware",
+      "branch": "feat/phase1-app-trackb",
+      "commits": [
+        "1fd3b23 feat: Phase 1 Track B - DB-backed auth, DCR, JTI, persona authority, 12 MCP tools",
+        "f0115de fix: address cross-review blockers - JTI agent_id, XOR authors, unbounded query, JSONB cast, OBO token"
+      ],
+      "crossReview": {
+        "reviewer": "codex",
+        "implementer": "claude_code",
+        "blockers_found": 4,
+        "blockers_resolved": 4,
+        "warnings_found": 2,
+        "warnings_resolved": 2,
+        "typecheck": "pass"
+      },
+      "notes": [
+        "hey-isaac-infra/src/sql/schema.sql updated with ADD COLUMN IF NOT EXISTS agent_id on persona_token_jti; needs migration run against existing Lakebase DB before deploy",
+        "mark_messages_read is a documented stub (no read_at column in DDL)",
+        "get_my_checkout_spec ignores project_id input (agent_checkout_spec keyed by agent_id only)"
+      ]
+    }
+  }
 }
