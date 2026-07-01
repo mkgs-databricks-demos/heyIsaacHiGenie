@@ -6,11 +6,11 @@ import ProjectView from './components/ProjectView';
 import ChatView from './components/ChatView';
 import type { Identity, View, Thread, AgentConfig } from './lib/types';
 
-const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
+const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
 
 const AGENTS: AgentConfig[] = [
   {
-    id: '22222222-2222-2222-2222-222222222222',
+    id: '00000000-0000-0000-0000-000000000002',
     persona: 'genie',
     label: 'Genie',
     color: '#FF3621',

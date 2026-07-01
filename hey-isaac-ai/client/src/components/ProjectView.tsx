@@ -13,7 +13,7 @@ import {
 import { callMcp } from '../lib/mcp';
 import type { AgentConfig, Thread } from '../lib/types';
 
-const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
+const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
 const PROJECT_NAME = 'Hi Genie — Demo Project';
 const PROJECT_DESCRIPTION =
   'Multi-agent coordination workspace. Each agent runs on its own branch and responds to threads you start here.';

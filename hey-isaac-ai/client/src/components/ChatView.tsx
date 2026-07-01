@@ -4,7 +4,7 @@ import { callMcp } from '../lib/mcp';
 import MessageBubble from './MessageBubble';
 import type { Message } from '../lib/types';
 
-const GENIE_AGENT_ID = '22222222-2222-2222-2222-222222222222';
+const GENIE_AGENT_ID = '00000000-0000-0000-0000-000000000002';
 const POLL_INTERVAL_MS = 3000;
 
 interface GetMessagesResult {
