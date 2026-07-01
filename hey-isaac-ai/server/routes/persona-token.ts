@@ -6,10 +6,12 @@ import { z } from 'zod';
 import { extractOboIdentity } from '../middleware/auth.js';
 import type { Db } from '../db/index.js';
 import type { Agent, ProjectMember, AgentGrant } from '../../src/db/types.js';
+import { databricksRealIpKeyGenerator } from '../utils/rate-limit.js';
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  keyGenerator: databricksRealIpKeyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
 });
