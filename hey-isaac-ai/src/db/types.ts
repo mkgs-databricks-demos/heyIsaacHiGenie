@@ -64,6 +64,7 @@ export interface Message {
   content: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   created_at: Date;
+  read_at: string | null;
 }
 
 export interface SessionSummary {

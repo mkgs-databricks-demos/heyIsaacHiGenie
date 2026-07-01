@@ -131,14 +131,16 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       thread_id: z.string().describe('Thread ID'),
       limit: z.number().int().min(1).max(200).optional().describe('Max messages to return (default 50)'),
       cursor: z.string().optional().describe('Pagination cursor (message ID)'),
+      unread_only: z.boolean().optional().describe('Only return unread messages addressed to the calling agent'),
     },
-    async ({ thread_id, limit = 50, cursor }) => {
+    async ({ thread_id, limit = 50, cursor, unread_only = false }) => {
       const result = await db.query<Message>(
         `SELECT * FROM messages
          WHERE thread_id = $1 AND ($2::uuid IS NULL OR id > $2::uuid)
+           AND ($4::boolean IS FALSE OR (to_agent_id = $5 AND read_at IS NULL))
          ORDER BY created_at ASC
          LIMIT $3`,
-        [thread_id, cursor ?? null, limit],
+        [thread_id, cursor ?? null, limit, unread_only, agentId],
       );
       const messages = result.rows;
       const next_cursor = messages.length === limit ? messages[messages.length - 1].id : null;
@@ -154,10 +156,20 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       thread_id: z.string().describe('Thread ID'),
       up_to_message_id: z.string().describe('Mark all messages up to and including this ID as read'),
     },
-    async (_args) => {
-      // TODO: messages table has no read_at column in the Track A DDL.
-      // This is a stub until a message_reads table or read_at column is added.
-      return ok({ ok: true });
+    async ({ thread_id, up_to_message_id }) => {
+      const result = await db.asUser(req).query<{ id: string }>(
+        `UPDATE messages
+         SET read_at = now()
+         WHERE thread_id = $1
+           AND to_agent_id = $2
+           AND read_at IS NULL
+           AND created_at <= (
+             SELECT created_at FROM messages WHERE id = $3 AND thread_id = $1
+           )
+         RETURNING id`,
+        [thread_id, agentId, up_to_message_id],
+      );
+      return ok({ updated_count: result.rowCount ?? result.rows.length });
     },
   );
 
