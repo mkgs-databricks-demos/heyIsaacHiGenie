@@ -227,14 +227,14 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 
 | Phase | Status | Description |
 |---|---|---|
-| 0 — Auth spike | **Bundles deployed ✓** — auth round-trip in progress | Prove OBO + DCR + persona token round-trip |
-| 1 — Foundation | Not started | Lakebase schema DDL, AppKit scaffold |
-| 2 — Auth productionize | Not started | DCR persistence, persona token rotation, key storage |
-| 3 — MCP server | Not started | Full messaging/memory tools, thread linkage |
-| 4 — Frontend | Not started | Owner dashboard: projects, roster, message monitor |
-| 5 — GitHub integration | Not started | Branch/PR tools, sparse checkout, branch protection |
-| 6 — Integration test | Not started | Connect Genie (UC) + Isaac (static OAuth), end-to-end |
-| 7 — Agile board | Not started | tasks/sprints UI + MCP tools |
+| 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — Databricks Apps proxy blocks M2M tokens, U2M behaviour already confirmed equivalent |
+| 1 — Foundation | ✅ **Done** | 13-table Lakebase DDL (PR #16), idempotent TS migration runner (PR #18/#19), DB-backed DCR/JTI/persona authority + 12 MCP tools (PR #17), React frontend w/ Databricks retro branding (PR #21) |
+| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
+| 3 — MCP server | 🟡 **Mostly done** | All 12 tools shipped and smoke-tested (9/10 pass, `docs/smoke-test-results-phase1.md`). Open: `mark_messages_read` / `unread_only` filtering is a documented stub (S6) — no `read_at` column in Track A DDL yet |
+| 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
+| 5 — GitHub integration | ⬜ Not started | Branch/PR tools, sparse checkout, branch protection — schema (`pull_requests`, `agent_checkout_spec`) already exists from Track A |
+| 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
+| 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 
 ---
 
