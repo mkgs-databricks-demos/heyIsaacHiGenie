@@ -33,6 +33,7 @@ const AppKit = createApp({
     }
 
     appkit.server.extend((app) => {
+      app.set('trust proxy', 1);
       app.use(express.json());
 
       // MCP streamable-HTTP endpoint (RFC — MCP 2025-03 transport spec)
