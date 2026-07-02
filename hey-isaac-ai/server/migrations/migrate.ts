@@ -2,6 +2,7 @@ import type { Db } from '../db/index.js';
 import { migration001 } from './001_initial_schema.js';
 import { migration002 } from './002_phase1_trackb.js';
 import { migration003 } from './003_message_read_tracking.js';
+import { migration004 } from './004_rls_policies.js';
 
 export interface Migration {
   name: string;
@@ -12,6 +13,7 @@ const migrations: Migration[] = [
   migration001,
   migration002,
   migration003,
+  migration004,
 ];
 
 const ENSURE_MIGRATIONS_TABLE = `
