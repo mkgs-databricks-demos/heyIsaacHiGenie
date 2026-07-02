@@ -73,11 +73,14 @@ async function roleExists(db: Db, roleName: string): Promise<boolean> {
 }
 
 async function roleHasBaselineGrants(db: Db, roleName: string): Promise<boolean> {
-  const result = await db.query<{ has_schema_usage: boolean }>(
-    "SELECT has_schema_privilege($1, 'public', 'USAGE') AS has_schema_usage",
+  const result = await db.query(
+    `SELECT 1
+     FROM information_schema.role_table_grants
+     WHERE grantee = $1 AND table_schema = 'public'
+     LIMIT 1`,
     [roleName],
   );
-  return result.rows[0]?.has_schema_usage === true;
+  return result.rows.length > 0;
 }
 
 async function waitForRoleVisibility(db: Db, roleName: string): Promise<void> {
