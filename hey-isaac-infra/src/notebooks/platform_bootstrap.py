@@ -59,10 +59,13 @@ if missing:
 # Migrations run automatically on app startup via runMigrations() in server.ts.
 # Do not add DDL here — add a new numbered migration file instead.
 
+# Table names are qualified to `app` explicitly — this runs over a raw
+# psycopg2 connection, which doesn't inherit the app's
+# `search_path=app,public` pool setting (see hey-isaac-ai/server/server.ts).
 SEED_DEV_SQL = """
 -- Dev seed data — idempotent via ON CONFLICT DO NOTHING
 
-INSERT INTO projects (id, name, description)
+INSERT INTO app.projects (id, name, description)
 VALUES (
   '00000000-0000-0000-0000-000000000001'::uuid,
   'dev-hi-genie',
@@ -70,7 +73,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO project_members (project_id, user_id, role)
+INSERT INTO app.project_members (project_id, user_id, role)
 VALUES (
   '00000000-0000-0000-0000-000000000001'::uuid,
   'matthew.giglia@databricks.com',
@@ -78,7 +81,7 @@ VALUES (
 )
 ON CONFLICT (project_id, user_id) DO NOTHING;
 
-INSERT INTO agents (id, project_id, nickname, description, created_by)
+INSERT INTO app.agents (id, project_id, nickname, description, created_by)
 VALUES (
   '00000000-0000-0000-0000-000000000002'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
@@ -88,7 +91,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO agent_grants (agent_id, user_id, granted_by)
+INSERT INTO app.agent_grants (agent_id, user_id, granted_by)
 VALUES (
   '00000000-0000-0000-0000-000000000002'::uuid,
   'matthew.giglia@databricks.com',

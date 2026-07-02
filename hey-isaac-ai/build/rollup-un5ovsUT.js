@@ -1,0 +1,1 @@
+const e=require(`./chunk-CpG5U-E7.js`);require(`./parseAst-Dy-fkDri.js`);const t=require(`./node-entry-B7ei4oTd.js`),n=e.__toESM(require(`path`)),r=e.__toESM(require(`node:path`)),i=e.__toESM(require(`node:fs/promises`)),a=e.__toESM(require(`node:perf_hooks`)),o=e.__toESM(require(`node:process`));exports.rollup=t.rollup,exports.watch=t.watch;
