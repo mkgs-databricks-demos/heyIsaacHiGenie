@@ -101,7 +101,12 @@ export async function ensureHumanRole(db: Db, humanEmail: string): Promise<strin
   if (!roleName) throw new Error('Human email is required to provision a Lakebase role');
   validateRoleNameLength(roleName);
 
-  if (await roleHasBaselineGrants(db, roleName)) {
+  if (await roleExists(db, roleName)) {
+    if (await roleHasBaselineGrants(db, roleName)) {
+      return roleName;
+    }
+
+    await grantRolePrivileges(db, roleName);
     return roleName;
   }
 
