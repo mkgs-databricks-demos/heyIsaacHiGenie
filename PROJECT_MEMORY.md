@@ -75,9 +75,9 @@ hey-isaac-hi-genie/
 
 ---
 
-## Current Status: Bundles Deployed — Lakebase Live — SPN Grants Automated
+## Current Status: RLS + Per-Human Postgres Roles Live — App Schema Hygiene Pending Merge
 
-### What is done (as of 2026-06-29)
+### What is done (as of 2026-07-02)
 - All architecture decisions finalized (see `docs/`)
 - Both DABs bundles (`hey-isaac-infra`, `hey-isaac-ai`) deployed to `dev` target on `fevm-hls-fde`
 - Lakebase project **`dev-hi-genie`**, branch **`dev-matthew-giglia`** live
@@ -89,6 +89,20 @@ hey-isaac-hi-genie/
   - Default privileges set on all future tables and sequences in `public`
 - `deploy.sh` builds the Lakebase connection string at deploy time (deployer's OAuth token +
   live endpoint host) and passes it to the job — no credentials baked into bundle YAML
+- **Row-Level Security is live in production** (PR #24) — all 11 project-scoped tables have
+  `USING`/`WITH CHECK` policies keyed on `current_user`; DB-level defense-in-depth alongside
+  app-layer checks. Human Postgres roles are provisioned **lazily** on first `/token/persona`
+  call per human per Lakebase branch — see "Lazy Per-Human Postgres Roles" below.
+- **`mark_messages_read` / `unread_only` fully implemented** (PR #23, migration `003`) — the
+  Track A stub (S6) is closed; `read_at` column + index now back the real filter.
+- **Databricks CLI hard-pinned to >= 1.5.0** (PR #25/#26) — both bundles declare
+  `bundle.databricks_cli_version` and `deploy.sh` fails loudly on an older CLI before any
+  other command runs. See "Required Tooling" below.
+- **Rate-limit key fixed to `X-Real-Ip`** (PR #22) — replaces the earlier, wrong,
+  hop-count-based `trust proxy` setting. See "Databricks Apps Ingress Topology" below.
+- **App-layer domain tables moving from `public` → `app` Postgres schema** (PR #27, open,
+  fully live-verified on dev, **not yet merged**) — matches the sibling `lakeLoom` project's
+  convention. `_migrations` stays in `public`. See "Postgres Schema: `app` vs `public`" below.
 
 ### Active dev environment
 | Resource | Value |
@@ -229,8 +243,8 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 |---|---|---|
 | 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — Databricks Apps proxy blocks M2M tokens, U2M behaviour already confirmed equivalent |
 | 1 — Foundation | ✅ **Done** | 13-table Lakebase DDL (PR #16), idempotent TS migration runner (PR #18/#19), DB-backed DCR/JTI/persona authority + 12 MCP tools (PR #17), React frontend w/ Databricks retro branding (PR #21) |
-| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
-| 3 — MCP server | 🟡 **Mostly done** | All 12 tools shipped and smoke-tested (9/10 pass, `docs/smoke-test-results-phase1.md`). Open: `mark_messages_read` / `unread_only` filtering is a documented stub (S6) — no `read_at` column in Track A DDL yet |
+| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
+| 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
 | 5 — GitHub integration | ⬜ Not started | Branch/PR tools, sparse checkout, branch protection — schema (`pull_requests`, `agent_checkout_spec`) already exists from Track A |
 | 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
@@ -260,6 +274,20 @@ If `deploy.sh` aborts with a CLI-version error, upgrade with:
 curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v1.5.0/install.sh | sh
 ```
 
+### Databricks Apps Ingress Topology (PR #22)
+`express-rate-limit` needs the real client IP, but Express's `trust proxy` is a fixed
+hop-count setting — fragile and, empirically, **wrong for this platform**. A live deploy
+test (spoofed `X-Forwarded-For` at various depths) found the real chain is **3 hops** for
+classic Databricks Apps (PoPP → DP APIProxy → oauth2-proxy sidecar) — matching Databricks'
+internal architecture docs exactly — and would be **4 hops** for Spaces-based apps. Any
+fixed number is fragile to app-type/topology changes, and Databricks' own public docs don't
+document `X-Forwarded-For` for this purpose at all.
+**Fix**: don't use `trust proxy` for rate-limiting at all. Point the rate limiter's
+`keyGenerator` directly at the `X-Real-Ip` header — this is the header Databricks' gateway
+itself sets and cannot be spoofed by a client (any client-forged `X-Real-Ip` is silently
+overwritten by the platform gateway, verified live). Applied across all three rate-limited
+routes (`mcp.ts`, `dcr.ts`, `persona-token.ts`) via a shared helper.
+
 ### OBO Header Discovery
 The spike UI at `/` hits `GET /api/me` which logs all candidate OBO headers and returns them
 in the response JSON. Check this endpoint first after deploy to see which header
@@ -278,14 +306,73 @@ Databricks Apps actually injects.
 ```
 Signed with `HS256` using `HI_GENIE_JWT_SIGNING_KEY` (env var, injected from secret scope).
 
-### DCR In-Memory Registry
-`server/routes/dcr.ts` uses an in-memory `Map` for the spike. Move to a Lakebase
-`dcr_clients` table in Phase 2.
+### DCR Registry — DB-backed (PR #17)
+~~`server/routes/dcr.ts` uses an in-memory `Map`~~ — **stale, fixed in Phase 1 Track B.**
+Registered clients now persist in the `dcr_clients` table (SP pool only, no RLS — admin/service
+table). Survives app restarts. Remaining known gaps: S2 (timing-safe secret compare) and S3
+(unauthenticated `GET /dcr/:client_id`) — see Known Gaps below.
 
 ### AppKit `lakebase().asUser(req)`
-Used for OBO per-user Postgres queries (enforces Row-Level Security).
-Requires `user_api_scopes: [postgres]` in `hi_genie.app.yml` — already set.
-Service-principal pool (`AppKit.lakebase.query()`) used for DDL and admin operations.
+Used for OBO per-user Postgres queries. **Enforces Row-Level Security as of PR #24** — every
+project-scoped table has `USING`/`WITH CHECK` policies keyed on `current_user`. Requires
+`user_api_scopes: [postgres]` in `hi_genie.app.yml` — already set. Service-principal pool
+(`AppKit.lakebase.query()`) used for DDL, admin operations, and any table without RLS
+(`dcr_clients`, `persona_token_jti`).
+
+### Lazy Per-Human Postgres Roles (PR #24)
+RLS `current_user`-based policies require a real Postgres role per human, but `asUser(req)`
+alone doesn't create one. `server/db/ensureHumanRole.ts` is called from `/token/persona`
+**before** the JWT is signed:
+1. Fast path: `has_schema_privilege(roleName, 'app', 'USAGE')` — if true, grants are already
+   applied, return immediately (self-healing: if this ever comes back false for an
+   *existing* role — e.g. a prior partial-provisioning failure — grants are re-applied, not
+   skipped).
+2. If the role doesn't exist yet: `CREATE ROLE "<lowercased-email>"`, then grant `USAGE` +
+   full CRUD + `ALTER DEFAULT PRIVILEGES` on the RLS-protected schema.
+3. Any failure here **fails the whole `/token/persona` call with 503** — no token is ever
+   issued that would later break on `asUser()` inside an MCP tool call.
+Role name = lowercased human email. Byte-length guarded against Postgres's 63-byte
+`NAMEDATALEN` limit (hard error, never truncates — truncation could collide two different
+humans onto the same role). Effectively "per human per Lakebase branch" since each
+target (dev/staging/prod) is a different Postgres instance with its own role namespace —
+falls out of the design for free, no explicit per-branch logic needed.
+**User-facing latency**: near-zero after the first call ever made against a given branch;
+one extra indexed catalog lookup per token issuance forever after.
+
+### Postgres Schema: `app` vs `public` (PR #27 — open, live-verified, not yet merged)
+All 13 domain tables (`projects`, `messages`, `dcr_clients`, etc.) are moving from `public`
+to a dedicated `app` schema, matching the `lakeLoom` project's precedent. **`_migrations`
+deliberately stays in `public`** — moving the migration-tracking table itself would create a
+bookkeeping hazard (the runner would look for `app._migrations`, find nothing, and try to
+re-apply 001–004 whose `CREATE TABLE`s would then collide with the already-moved tables).
+Rationale for the move: explicit grants instead of relying on Postgres's implicit
+`USAGE`-on-`public`-to-`PUBLIC`-role default, namespace isolation from Lakebase/`appkit`
+platform objects, and a clean `DROP SCHEMA app CASCADE` reset path for dev. RLS policies,
+indexes, and FKs survive `ALTER TABLE ... SET SCHEMA` automatically — no policy
+recreation needed (migration `005_app_schema.ts` does not touch `CREATE POLICY`).
+The `hi_genie_has_project_access` `SECURITY DEFINER` RLS helper function also needed its
+own `ALTER FUNCTION ... SET search_path = app, public` — it pins its own search_path and
+would otherwise silently find zero rows in `project_members` after the table move, breaking
+every RLS check with no error (caught before merge via live deploy testing, not code review).
+
+**⚠️ Load-bearing workaround — do not remove `server/db/searchPath.ts`:** the app's pool
+config sets `pool: { options: '-c search_path=app,public' }`, but `@databricks/lakebase`'s
+`pool-config.js` explicitly enumerates which fields it reads from `userConfig`
+(`endpoint, host, database, port, sslMode, ssl, max, idleTimeoutMillis,
+connectionTimeoutMillis`) and **silently drops `options` entirely** — confirmed by reading
+the library source, not assumed. AppKit's Lakebase plugin also exposes no `pool.on('connect')`
+hook (the real `pg.Pool` instances are private fields on its `RoutingPool` wrapper), so there
+is no supported extension point. `searchPath.ts` monkeypatches the global `pg.Pool` export
+(safe: `pg` is a CJS singleton, patched once via a module-level idempotency guard) with a
+subclass that passes `onConnect` in the `pg-pool` config — an async hook `pg-pool` *awaits
+before ever handing the client to a caller*; if the `SET search_path` query fails, `pg-pool`
+discards the client and fails the acquisition, rather than silently handing back a client
+with the wrong search_path. This is installed once, at the very top of `server.ts`, before
+`createApp()` — every pool `@databricks/lakebase` constructs afterward (SP pool eagerly,
+each per-human OBO pool lazily) inherits the patched constructor. **This was found by a live
+dev deploy that crashed the whole app process on the first real request
+(`relation "project_members" does not exist`) — static code review of the same change had
+passed cleanly.** Deploy-before-merge caught what review alone did not.
 
 ### deploy.sh `lakebase_database_id` Resolution
 The Lakebase database ID is auto-generated on first project deploy and not known at
@@ -333,7 +420,9 @@ production hardening.
 | S1 | Persona token | Closed by Databricks Apps `valueFrom: persona-issuer`. | `deploy.sh` writes the resolved issuer URL to the target secret scope as `persona_issuer` before app bundle deploy. |
 | S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
 | S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
-| S4 | DCR persistence | Client registry is in-memory (`Map`). Restarts lose all registered clients. | Move to a Lakebase `dcr_clients` table. Already noted in architecture docs. |
+| ~~S4~~ | ~~DCR persistence~~ | **Closed (PR #17).** Client registry moved to a Lakebase `dcr_clients` table (SP pool, no RLS). This row was left stale in an earlier revision of this doc despite the Roadmap table already reflecting the fix — corrected here. | — |
+| S5 | RLS defense-in-depth | **Closed (PR #24).** All 11 project-scoped tables now have DB-level `USING`/`WITH CHECK` RLS policies, backed by lazy per-human Postgres role provisioning. Previously app-layer WHERE clauses were the *only* backstop. | — |
+| S6 | `mark_messages_read` stub | **Closed (PR #23).** `read_at` column + index added (migration `003`); `unread_only` now filters for real. | — |
 
 ### Deployment / Infra
 
