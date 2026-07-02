@@ -24,6 +24,10 @@ export interface Agent {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  omnigent_server: string | null;
+  omnigent_session_id: string | null;
+  omnigent_host_id: string | null;
+  omnigent_runner_bound: boolean;
 }
 
 export interface AgentGrant {

@@ -692,10 +692,43 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     -- project_members unqualified, so once that table lives in app, the
     -- pinned search_path must include app or every RLS policy check fails.
     ALTER FUNCTION public.hi_genie_has_project_access(UUID, TEXT) SET search_path = app, public;
-  `},Oce=[xce,Sce,Cce,wce,Dce],kce=`
+  `},Oce={name:`006_omnigent_routing`,up:`
+    -- Omnigent routing columns on agents (nullable — non-Omnigent agents leave NULL)
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_server TEXT;
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_session_id TEXT;
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_host_id TEXT;
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_runner_bound BOOLEAN NOT NULL DEFAULT false;
+
+    -- NOTIFY trigger: fires on every new message insert (independent of read
+    -- state) so the Omnigent bridge process can route it via LISTEN/NOTIFY.
+    CREATE OR REPLACE FUNCTION app.notify_hi_genie_message() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = app, public
+    AS $$
+    DECLARE
+      v_project_id UUID;
+    BEGIN
+      SELECT project_id INTO v_project_id FROM threads WHERE id = NEW.thread_id;
+
+      PERFORM pg_notify('hi_genie_messages', json_build_object(
+        'message_id',  NEW.id::text,
+        'thread_id',   NEW.thread_id::text,
+        'project_id',  v_project_id::text,
+        'to_agent_id', COALESCE(NEW.to_agent_id::text, '')
+      )::text);
+      RETURN NEW;
+    END;
+    $$;
+
+    DROP TRIGGER IF EXISTS trg_notify_hi_genie_message ON messages;
+    CREATE TRIGGER trg_notify_hi_genie_message
+      AFTER INSERT ON messages
+      FOR EACH ROW
+      EXECUTE FUNCTION app.notify_hi_genie_message();
+  `},kce=[xce,Sce,Cce,wce,Dce,Oce],Ace=`
   CREATE TABLE IF NOT EXISTS public._migrations (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
-`,Ace=`SELECT name FROM public._migrations ORDER BY id`,jce=`INSERT INTO public._migrations (name) VALUES ($1)`;async function Mce(e){await e.query(kce);let{rows:t}=await e.query(Ace),n=new Set(t.map(e=>e.name)),r=0;for(let t of Oce){if(n.has(t.name))continue;console.log(`[migrations] Applying: ${t.name}`);try{await e.query(t.up),await e.query(jce,[t.name]),r++,console.log(`[migrations] Applied: ${t.name}`)}catch(e){throw console.error(`[migrations] FAILED: ${t.name}`,e),Error(`Migration "${t.name}" failed: ${e.message}. Database may be in an inconsistent state. Fix the migration and restart.`)}}return r===0?console.log(`[migrations] All migrations already applied.`):console.log(`[migrations] Applied ${r} migration(s).`),r}if(!process.env.HI_GENIE_JWT_SIGNING_KEY)if(process.env.NODE_ENV===`development`)console.warn(`[auth] HI_GENIE_JWT_SIGNING_KEY not set — persona tokens will fail. Set it in server/.env`);else throw Error(`HI_GENIE_JWT_SIGNING_KEY is required`);bce();const Nce=RP({plugins:[RX(),oq()],async onPluginsReady(e){let t=e.lakebase;try{await Mce(t)}catch(e){throw console.error(`[startup] Migration failed — halting:`,e),e}e.server.extend(e=>{e.use(Tn.default.json()),e.use(`/mcp`,tce(t)),e.use(`/register`,Y9(t)),e.use(`/.well-known`,yce()),e.use(`/token`,vce(t)),e.get(`/api/me`,(e,t)=>{let n=jQ(e);if(!n){t.status(401).json({error:`unauthenticated`});return}t.json({email:n,oboHeaders:Object.fromEntries([`x-forwarded-email`,`x-forwarded-user`,`x-databricks-user-email`,`x-ms-client-principal-name`].filter(t=>e.headers[t]).map(t=>[t,e.headers[t]]))})}),e.get(`/health`,(e,t)=>t.json({status:`ok`,ts:new Date().toISOString()}))})}});exports.AppKit=Nce,exports.SERVER_INFO=G9;
+`,jce=`SELECT name FROM public._migrations ORDER BY id`,Mce=`INSERT INTO public._migrations (name) VALUES ($1)`;async function Nce(e){await e.query(Ace);let{rows:t}=await e.query(jce),n=new Set(t.map(e=>e.name)),r=0;for(let t of kce){if(n.has(t.name))continue;console.log(`[migrations] Applying: ${t.name}`);try{await e.query(t.up),await e.query(Mce,[t.name]),r++,console.log(`[migrations] Applied: ${t.name}`)}catch(e){throw console.error(`[migrations] FAILED: ${t.name}`,e),Error(`Migration "${t.name}" failed: ${e.message}. Database may be in an inconsistent state. Fix the migration and restart.`)}}return r===0?console.log(`[migrations] All migrations already applied.`):console.log(`[migrations] Applied ${r} migration(s).`),r}if(!process.env.HI_GENIE_JWT_SIGNING_KEY)if(process.env.NODE_ENV===`development`)console.warn(`[auth] HI_GENIE_JWT_SIGNING_KEY not set — persona tokens will fail. Set it in server/.env`);else throw Error(`HI_GENIE_JWT_SIGNING_KEY is required`);bce();const Pce=RP({plugins:[RX(),oq()],async onPluginsReady(e){let t=e.lakebase;try{await Nce(t)}catch(e){throw console.error(`[startup] Migration failed — halting:`,e),e}e.server.extend(e=>{e.use(Tn.default.json()),e.use(`/mcp`,tce(t)),e.use(`/register`,Y9(t)),e.use(`/.well-known`,yce()),e.use(`/token`,vce(t)),e.get(`/api/me`,(e,t)=>{let n=jQ(e);if(!n){t.status(401).json({error:`unauthenticated`});return}t.json({email:n,oboHeaders:Object.fromEntries([`x-forwarded-email`,`x-forwarded-user`,`x-databricks-user-email`,`x-ms-client-principal-name`].filter(t=>e.headers[t]).map(t=>[t,e.headers[t]]))})}),e.get(`/health`,(e,t)=>t.json({status:`ok`,ts:new Date().toISOString()}))})}});exports.AppKit=Pce,exports.SERVER_INFO=G9;
