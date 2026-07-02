@@ -240,6 +240,26 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 
 ## Technical Notes
 
+### Required Tooling: Databricks CLI >= 1.5.0
+Both bundles pin `bundle.databricks_cli_version: ">= 1.5.0"` in `databricks.yml`, and
+`deploy.sh` has an explicit fail-closed version-check gate (`REQUIRED_CLI_VERSION`) as its
+first CLI invocation, before any other `databricks` command runs.
+
+**Why:** `databricks <cmd> --output json` has no documented/stable schema (confirmed against
+Databricks' own docs and the CLI's source at multiple tags) — the shape can change or simply
+be misassumed by a script author with no version signal at all. `deploy.sh` was bitten by
+exactly this: it parsed `auth describe --output json` looking for `details.userName`, a key
+that has **never existed at any CLI version** (v0.299.2 through v1.5.0 all return the username
+as a top-level `username` field — verified directly against `cmd/auth/describe.go` in the
+`databricks/cli` GitHub repo at those tags). The bug was a bad initial assumption, not version
+drift, but the fix is the same either way: pin a modern CLI and fail loudly rather than
+silently misparse.
+
+If `deploy.sh` aborts with a CLI-version error, upgrade with:
+```bash
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v1.5.0/install.sh | sh
+```
+
 ### OBO Header Discovery
 The spike UI at `/` hits `GET /api/me` which logs all candidate OBO headers and returns them
 in the response JSON. Check this endpoint first after deploy to see which header
@@ -284,7 +304,9 @@ endpoint host, then passes it to the `configure_app_spn` job as a single paramet
 _token=$(databricks auth token --output json | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 _host=$(databricks postgres list-endpoints "projects/${LAKEBASE_PROJECT_ID}/branches/${LAKEBASE_BRANCH_ID}" \
   --output json | python3 -c "import sys,json; eps=json.load(sys.stdin); ...; print(eps[0]['status']['hosts']['host'])")
-_user=$(databricks auth describe --output json | python3 -c "... print(d['details']['userName'])")
+_user=$(databricks auth describe --output json | python3 -c "... print(d.get('username','') or d.get('details',{}).get('userName','') or d.get('userName','') or d.get('user',{}).get('name',''))")
+# NOTE: 'username' is top-level in every CLI version checked (v0.299.2-v1.5.0); the old
+# 'details.userName' lookup never worked at any version. See "Required Tooling" note above.
 # URL-encode both user and token (special chars in OAuth tokens)
 _user_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_user}")
 _token_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_token}")
