@@ -810,7 +810,7 @@ print(eps[0]['status']['hosts']['host'] if eps else '')
       | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-print(d.get('details', {}).get('userName', '') or d.get('userName', '') or d.get('user', {}).get('name', ''))
+print(d.get('username', '') or d.get('details', {}).get('userName', '') or d.get('userName', '') or d.get('user', {}).get('name', ''))
 " 2>/dev/null) || _user=""
 
     if [[ -n "${_token}" && -n "${_host}" && -n "${_user}" ]]; then

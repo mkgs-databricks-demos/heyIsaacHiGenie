@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { z } from 'zod';
 import { extractOboIdentity } from '../middleware/auth.js';
 import type { Db } from '../db/index.js';
+import { ensureHumanRole } from '../db/ensureHumanRole.js';
 import type { Agent, ProjectMember, AgentGrant } from '../../src/db/types.js';
 import { databricksRealIpKeyGenerator } from '../utils/rate-limit.js';
 
@@ -63,6 +64,17 @@ export function personaTokenRouter(db: Db) {
     }
 
     const { persona, project_id } = parsed.data;
+
+    try {
+      await ensureHumanRole(db, human);
+    } catch {
+      console.error('[persona-token] failed to provision Lakebase role for OBO user');
+      res.status(503).json({
+        error: 'not_configured',
+        message: 'Lakebase role provisioning failed — persona token cannot be issued',
+      });
+      return;
+    }
 
     // B3: Project membership check
     const memberResult = await db.query<ProjectMember>(
