@@ -2,6 +2,7 @@ import { getWorkspaceClient } from '@databricks/appkit';
 import type { Db } from './index.js';
 
 const ROLE_ALREADY_EXISTS_CODES = new Set(['ALREADY_EXISTS', 'RESOURCE_ALREADY_EXISTS', 'CONFLICT']);
+const MAX_POSTGRES_IDENTIFIER_BYTES = 63;
 const ROLE_VISIBILITY_ATTEMPTS = 10;
 const ROLE_VISIBILITY_DELAY_MS = 500;
 
@@ -11,6 +12,13 @@ function quoteIdentifier(identifier: string): string {
 
 function normalizeHumanEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function validateRoleNameLength(roleName: string): void {
+  const roleNameBytes = Buffer.byteLength(roleName, 'utf8');
+  if (roleNameBytes > MAX_POSTGRES_IDENTIFIER_BYTES) {
+    throw new Error(`Postgres role name exceeds ${MAX_POSTGRES_IDENTIFIER_BYTES} bytes`);
+  }
 }
 
 function getLakebaseBranchResource(): string {
@@ -83,16 +91,18 @@ async function grantRolePrivileges(db: Db, roleName: string): Promise<void> {
 export async function ensureHumanRole(db: Db, humanEmail: string): Promise<string> {
   const roleName = normalizeHumanEmail(humanEmail);
   if (!roleName) throw new Error('Human email is required to provision a Lakebase role');
+  validateRoleNameLength(roleName);
 
-  if (!(await roleExists(db, roleName))) {
-    try {
-      await createLakebaseRole(roleName);
-    } catch (error) {
-      if (!isAlreadyExistsError(error)) throw error;
-    }
-    await waitForRoleVisibility(db, roleName);
+  if (await roleExists(db, roleName)) {
+    return roleName;
   }
 
+  try {
+    await createLakebaseRole(roleName);
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) throw error;
+  }
+  await waitForRoleVisibility(db, roleName);
   await grantRolePrivileges(db, roleName);
   return roleName;
 }
