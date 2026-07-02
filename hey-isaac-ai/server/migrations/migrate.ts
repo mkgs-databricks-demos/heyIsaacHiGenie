@@ -1,6 +1,7 @@
 import type { Db } from '../db/index.js';
 import { migration001 } from './001_initial_schema.js';
 import { migration002 } from './002_phase1_trackb.js';
+import { migration003 } from './003_message_read_tracking.js';
 
 export interface Migration {
   name: string;
@@ -10,6 +11,7 @@ export interface Migration {
 const migrations: Migration[] = [
   migration001,
   migration002,
+  migration003,
 ];
 
 const ENSURE_MIGRATIONS_TABLE = `
