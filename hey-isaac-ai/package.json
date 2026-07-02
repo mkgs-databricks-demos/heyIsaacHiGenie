@@ -8,9 +8,14 @@
     "build:client": "cd client && vite build",
     "build:server": "tsdown --config tsdown.server.config.ts",
     "start": "node build/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bridge": "tsx server/bridge/index.ts"
+  },
+  "dependencies": {
+    "pg": "^8.18.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.6",
     "@databricks/appkit": "^0.36.0",
     "@databricks/appkit-ui": "^0.36.0",
     "@modelcontextprotocol/sdk": "^1.9.0",
