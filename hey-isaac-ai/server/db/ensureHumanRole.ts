@@ -76,7 +76,7 @@ async function roleHasBaselineGrants(db: Db, roleName: string): Promise<boolean>
   const result = await db.query(
     `SELECT 1
      FROM information_schema.role_table_grants
-     WHERE grantee = $1 AND table_schema = 'public'
+     WHERE grantee = $1 AND table_schema = 'app'
      LIMIT 1`,
     [roleName],
   );
@@ -92,11 +92,15 @@ async function waitForRoleVisibility(db: Db, roleName: string): Promise<void> {
   throw new Error('Lakebase role was created but is not visible in Postgres yet');
 }
 
+// Human (OBO) roles only ever query the app.* domain tables — RLS on those
+// tables is what actually scopes their access. They never touch
+// public._migrations (only the SP pool's migration runner does), so no
+// `public` grant is needed here.
 async function grantRolePrivileges(db: Db, roleName: string): Promise<void> {
   const role = quoteIdentifier(roleName);
-  await db.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
-  await db.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${role}`);
-  await db.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role}`);
+  await db.query(`GRANT USAGE ON SCHEMA app TO ${role}`);
+  await db.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA app TO ${role}`);
+  await db.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role}`);
 }
 
 export async function ensureHumanRole(db: Db, humanEmail: string): Promise<string> {

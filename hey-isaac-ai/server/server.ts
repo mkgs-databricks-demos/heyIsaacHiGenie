@@ -20,7 +20,11 @@ if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
 }
 
 const AppKit = createApp({
-  plugins: [server(), lakebase()],
+  // `options` is forwarded verbatim to every pg.Pool the lakebase plugin
+  // creates — both the SP pool and every per-user OBO pool (see
+  // LakebasePlugin.setup, which spreads this.config.pool into both) — so
+  // this one setting covers every connection without touching call sites.
+  plugins: [server(), lakebase({ pool: { options: '-c search_path=app,public' } })],
 
   async onPluginsReady(appkit) {
     const db = appkit.lakebase as unknown as Db;
