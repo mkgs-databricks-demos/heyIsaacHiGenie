@@ -158,6 +158,23 @@
       "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/21",
       "reviewer": "claude_code",
       "review_verdict": "PASS"
+    },
+    {
+      "id": "db-notify-read-tracking",
+      "title": "feat: DB read-tracking, Omnigent routing columns, and NOTIFY trigger",
+      "branch": "polly/db-notify-read-tracking",
+      "worktree": ".worktrees/db-notify-read-tracking",
+      "agent": "claude_code",
+      "status": "open",
+      "pr_url": "https://github.com/mkgs-databricks-demos/heyIsaacHiGenie/pull/28",
+      "files": [
+        "hey-isaac-ai/server/migrations/003_notify_and_routing.ts",
+        "hey-isaac-ai/server/migrations/migrate.ts",
+        "hey-isaac-ai/server/mcp/tools.ts",
+        "hey-isaac-ai/src/db/types.ts",
+        "docs/03-data-model.md",
+        "docs/04-mcp-tools.md"
+      ]
     }
   ],
   "phase1": {
