@@ -67,8 +67,8 @@ export function personaTokenRouter(db: Db) {
 
     try {
       await ensureHumanRole(db, human);
-    } catch (err) {
-      console.error('[persona-token] failed to provision Lakebase role for OBO user', err);
+    } catch {
+      console.error('[persona-token] failed to provision Lakebase role for OBO user');
       res.status(503).json({
         error: 'not_configured',
         message: 'Lakebase role provisioning failed — persona token cannot be issued',
