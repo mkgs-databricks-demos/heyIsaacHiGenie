@@ -3,6 +3,7 @@ import { migration001 } from './001_initial_schema.js';
 import { migration002 } from './002_phase1_trackb.js';
 import { migration003 } from './003_message_read_tracking.js';
 import { migration004 } from './004_rls_policies.js';
+import { migration005 } from './005_app_schema.js';
 
 export interface Migration {
   name: string;
@@ -14,18 +15,22 @@ const migrations: Migration[] = [
   migration002,
   migration003,
   migration004,
+  migration005,
 ];
 
+// Explicitly qualified to public — once search_path is app, public (see
+// db/index.ts), an unqualified CREATE TABLE would land _migrations in `app`
+// on a fresh database, which is exactly what we don't want (see 005_app_schema.ts).
 const ENSURE_MIGRATIONS_TABLE = `
-  CREATE TABLE IF NOT EXISTS _migrations (
+  CREATE TABLE IF NOT EXISTS public._migrations (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
 `;
 
-const GET_APPLIED = `SELECT name FROM _migrations ORDER BY id`;
-const INSERT_APPLIED = `INSERT INTO _migrations (name) VALUES ($1)`;
+const GET_APPLIED = `SELECT name FROM public._migrations ORDER BY id`;
+const INSERT_APPLIED = `INSERT INTO public._migrations (name) VALUES ($1)`;
 
 export async function runMigrations(db: Db): Promise<number> {
   await db.query(ENSURE_MIGRATIONS_TABLE);

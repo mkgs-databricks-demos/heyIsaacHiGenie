@@ -31,6 +31,13 @@ if lakebase_connection_string and lakebase_connection_string != "__unset__":
             cur.execute(f'GRANT ALL ON SCHEMA public TO "{principal}"')
             print(f"✓ GRANT ALL ON SCHEMA public TO {principal[:8]}…")
 
+            # Grant on app schema — domain tables live here (see
+            # 005_app_schema.ts). Create it defensively in case this notebook
+            # runs before the app has applied migrations for the first time.
+            cur.execute("CREATE SCHEMA IF NOT EXISTS app")
+            cur.execute(f'GRANT ALL ON SCHEMA app TO "{principal}"')
+            print(f"✓ GRANT ALL ON SCHEMA app TO {principal[:8]}…")
+
             # Grant on appkit schema if it exists
             cur.execute(
                 "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'appkit'"
@@ -49,6 +56,14 @@ if lakebase_connection_string and lakebase_connection_string != "__unset__":
                 f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "{principal}"'
             )
             print("✓ Default privileges set for public schema")
+
+            cur.execute(
+                f'ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON TABLES TO "{principal}"'
+            )
+            cur.execute(
+                f'ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON SEQUENCES TO "{principal}"'
+            )
+            print("✓ Default privileges set for app schema")
     finally:
         conn.close()
 

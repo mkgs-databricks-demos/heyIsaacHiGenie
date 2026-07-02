@@ -3,6 +3,10 @@
 --   hey-isaac-ai/server/migrations/001_initial_schema.ts  (base schema)
 --   hey-isaac-ai/server/migrations/002_phase1_trackb.ts   (Phase 1 Track B additions)
 -- To make a schema change, add a new numbered migration file.
+--
+-- NOTE: as of 005_app_schema.ts, all 13 tables below live in the `app`
+-- schema, not `public` (only `_migrations` stays in `public`). Table names
+-- here remain unqualified for readability; see 005_app_schema.ts for the move.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
