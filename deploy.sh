@@ -765,12 +765,17 @@ check_or_provision_github_oauth_secrets() {
 
   local secrets_json present_keys
   secrets_json=$(databricks secrets list-secrets "${APP_SECRET_SCOPE}" --output json 2>/dev/null) || {
+    if [[ "${TARGET}" == "dev" ]]; then
+      warn "Could not list GitHub OAuth secrets in dev scope ${APP_SECRET_SCOPE}; treating scope as empty for placeholder provisioning."
+      secrets_json="[]"
+    else
     echo ""
     echo "  Secret scope '${APP_SECRET_SCOPE}' not found."
     echo "  Run the platform bootstrap job first:"
     echo "    ./deploy.sh --target ${TARGET} --infra --run-setup"
     echo ""
     fail "GitHub OAuth secret check failed (scope missing)."
+    fi
   }
 
   present_keys=$(echo "${secrets_json}" | python3 -c "
@@ -823,30 +828,37 @@ for s in items:
   fi
 
   if [[ ${#unreadable[@]} -gt 0 ]]; then
-    warn "GitHub OAuth secret values could not be read from CLI; skipping placeholder comparison for: ${unreadable[*]}"
-    warn "If these are still dev placeholders, GitHub OAuth login will fail until real credentials are stored."
+    warn "GitHub OAuth secret values could not be verified as non-placeholder: ${unreadable[*]}"
   fi
 
-  if [[ ${#missing[@]} -gt 0 || ${#placeholder[@]} -gt 0 ]]; then
-    echo ""
-    echo "  ============================================================="
-    echo "  ACTION REQUIRED: Provision real GitHub OAuth App credentials."
-    echo "  ============================================================="
-    echo ""
+  if [[ ${#missing[@]} -gt 0 || ${#placeholder[@]} -gt 0 || ${#unreadable[@]} -gt 0 ]]; then
+    cat <<EOF
+
+  =============================================================
+  ACTION REQUIRED: Provision real GitHub OAuth App credentials.
+  =============================================================
+
+EOF
     [[ ${#missing[@]} -gt 0 ]] && echo "  Missing: ${missing[*]}"
     [[ ${#placeholder[@]} -gt 0 ]] && echo "  Still placeholders: ${placeholder[*]}"
-    echo ""
-    echo "  Create a GitHub OAuth App with callback URL:"
-    echo "    https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/auth/github/callback"
-    echo ""
-    echo "  Store the credentials in this target's secret scope:"
-    echo "    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_id \\\"
-    echo "      --string-value \"<real-github-oauth-client-id>\""
-    echo "    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_secret \\\"
-    echo "      --string-value \"<real-github-oauth-client-secret>\""
-    echo ""
-    echo "  Then re-run: ./deploy.sh --target ${TARGET} --app"
-    echo ""
+    if [[ ${#unreadable[@]} -gt 0 ]]; then
+      echo "  Could not verify as non-placeholder: ${unreadable[*]}"
+      echo "  Confirm these values manually or overwrite them with real GitHub OAuth App credentials."
+    fi
+    cat <<EOF
+
+  Create a GitHub OAuth App with callback URL:
+    https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/auth/github/callback
+
+  Store the credentials in this target's secret scope:
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_id \\
+      --string-value "<real-github-oauth-client-id>"
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_secret \\
+      --string-value "<real-github-oauth-client-secret>"
+
+  Then re-run: ./deploy.sh --target ${TARGET} --app
+
+EOF
     fail "GitHub OAuth secret check failed."
   fi
 }
