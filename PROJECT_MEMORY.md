@@ -75,7 +75,7 @@ hey-isaac-hi-genie/
 
 ---
 
-## Current Status: RLS + Per-Human Postgres Roles Live — App Schema Hygiene Pending Merge
+## Current Status: RLS + Per-Human Postgres Roles Live — App Schema Migration Merged
 
 ### What is done (as of 2026-07-02)
 - All architecture decisions finalized (see `docs/`)
@@ -100,9 +100,9 @@ hey-isaac-hi-genie/
   other command runs. See "Required Tooling" below.
 - **Rate-limit key fixed to `X-Real-Ip`** (PR #22) — replaces the earlier, wrong,
   hop-count-based `trust proxy` setting. See "Databricks Apps Ingress Topology" below.
-- **App-layer domain tables moving from `public` → `app` Postgres schema** (PR #27, open,
-  fully live-verified on dev, **not yet merged**) — matches the sibling `lakeLoom` project's
-  convention. `_migrations` stays in `public`. See "Postgres Schema: `app` vs `public`" below.
+- **App-layer domain tables moved from `public` → `app` Postgres schema** (PR #27, merged
+  `21c710a`) — matches the sibling `lakeLoom` project's convention. `_migrations` stays in
+  `public`. See "Postgres Schema: `app` vs `public`" below.
 
 ### Active dev environment
 | Resource | Value |
@@ -339,7 +339,7 @@ falls out of the design for free, no explicit per-branch logic needed.
 **User-facing latency**: near-zero after the first call ever made against a given branch;
 one extra indexed catalog lookup per token issuance forever after.
 
-### Postgres Schema: `app` vs `public` (PR #27 — open, live-verified, not yet merged)
+### Postgres Schema: `app` vs `public` (PR #27 — merged `21c710a`)
 All 13 domain tables (`projects`, `messages`, `dcr_clients`, etc.) are moving from `public`
 to a dedicated `app` schema, matching the `lakeLoom` project's precedent. **`_migrations`
 deliberately stays in `public`** — moving the migration-tracking table itself would create a
