@@ -72,6 +72,14 @@ async function roleExists(db: Db, roleName: string): Promise<boolean> {
   return existing.rows.length > 0;
 }
 
+async function roleHasBaselineGrants(db: Db, roleName: string): Promise<boolean> {
+  const result = await db.query<{ has_schema_usage: boolean }>(
+    "SELECT has_schema_privilege($1, 'public', 'USAGE') AS has_schema_usage",
+    [roleName],
+  );
+  return result.rows[0]?.has_schema_usage === true;
+}
+
 async function waitForRoleVisibility(db: Db, roleName: string): Promise<void> {
   for (let attempt = 0; attempt < ROLE_VISIBILITY_ATTEMPTS; attempt++) {
     if (await roleExists(db, roleName)) return;
@@ -93,7 +101,7 @@ export async function ensureHumanRole(db: Db, humanEmail: string): Promise<strin
   if (!roleName) throw new Error('Human email is required to provision a Lakebase role');
   validateRoleNameLength(roleName);
 
-  if (await roleExists(db, roleName)) {
+  if (await roleHasBaselineGrants(db, roleName)) {
     return roleName;
   }
 
