@@ -70,6 +70,12 @@ AUTO_PROVISIONED_KEYS=(workspace_url)
 # Admin must provision these before deploying the app bundle
 ADMIN_PROVISIONED_KEYS=(jwt_signing_key)
 
+# Dev-only placeholders for GitHub OAuth App credentials. These unblock bundle
+# deployment before the Phase 5 OAuth flow is enabled, but must never be used
+# for staging/prod-like targets.
+GITHUB_CLIENT_ID_PLACEHOLDER="dev-placeholder-github-client-id"
+GITHUB_CLIENT_SECRET_PLACEHOLDER="dev-placeholder-github-client-secret"
+
 REQUIRED_SCOPE_KEYS=("${AUTO_PROVISIONED_KEYS[@]}" "${ADMIN_PROVISIONED_KEYS[@]}")
 
 # Resolved at runtime
@@ -699,6 +705,30 @@ write_persona_issuer_secret() {
 }
 
 # --------------------------------------------------------------------------- #
+# get_secret_value — best-effort read of a secret value
+# --------------------------------------------------------------------------- #
+get_secret_value() {
+  local scope="$1" key="$2"
+  databricks secrets get-secret "${scope}" "${key}" --output json 2>/dev/null | python3 -c "
+import base64, json, sys
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(1)
+value = data.get('value') if isinstance(data, dict) else None
+if value is None:
+    sys.exit(1)
+if isinstance(value, str):
+    try:
+        sys.stdout.write(base64.b64decode(value).decode('utf-8'))
+    except Exception:
+        sys.stdout.write(value)
+else:
+    sys.exit(1)
+" 2>/dev/null
+}
+
+# --------------------------------------------------------------------------- #
 # ensure_dev_placeholder_secrets
 # For dev targets, provision placeholder values for admin-provisioned secrets
 # that the app bundle requires but which are not written by this script.
@@ -721,20 +751,103 @@ ensure_dev_placeholder_secrets() {
     log "Secret already present: dcr_shared_secret"
   fi
 
-  # github_client_id — placeholder (replace with real OAuth App credentials when ready)
-  if [[ "${existing_keys}" != *"github_client_id"* ]]; then
-    databricks secrets put-secret "${APP_SECRET_SCOPE}" "github_client_id" --string-value "dev-placeholder-github-client-id"
-    ok "Dev placeholder set: github_client_id"
-  else
-    log "Secret already present: github_client_id"
+}
+
+# --------------------------------------------------------------------------- #
+# check_or_provision_github_oauth_secrets
+# GitHub does not provide a validation-only endpoint for confidential OAuth App
+# client secrets, so this checks only presence and known deploy placeholders.
+# --------------------------------------------------------------------------- #
+check_or_provision_github_oauth_secrets() {
+  [[ -n "${APP_SECRET_SCOPE}" ]] || fail "APP_SECRET_SCOPE is required to check GitHub OAuth secrets."
+
+  log "Checking GitHub OAuth secrets in scope ${APP_SECRET_SCOPE}"
+
+  local secrets_json present_keys
+  secrets_json=$(databricks secrets list-secrets "${APP_SECRET_SCOPE}" --output json 2>/dev/null) || {
+    echo ""
+    echo "  Secret scope '${APP_SECRET_SCOPE}' not found."
+    echo "  Run the platform bootstrap job first:"
+    echo "    ./deploy.sh --target ${TARGET} --infra --run-setup"
+    echo ""
+    fail "GitHub OAuth secret check failed (scope missing)."
+  }
+
+  present_keys=$(echo "${secrets_json}" | python3 -c "
+import sys,json
+data = json.load(sys.stdin)
+items = data.get('secrets', data) if isinstance(data, dict) else data
+for s in items:
+    if isinstance(s, dict): print(s.get('key', ''))
+" 2>/dev/null) || fail "Could not parse secrets list."
+
+  local missing=()
+  local placeholder=()
+  local unreadable=()
+  local key value placeholder_value
+
+  for key in github_client_id github_client_secret; do
+    case "${key}" in
+      github_client_id) placeholder_value="${GITHUB_CLIENT_ID_PLACEHOLDER}" ;;
+      github_client_secret) placeholder_value="${GITHUB_CLIENT_SECRET_PLACEHOLDER}" ;;
+    esac
+
+    if ! echo "${present_keys}" | grep -qx "${key}"; then
+      if [[ "${TARGET}" == "dev" ]]; then
+        databricks secrets put-secret "${APP_SECRET_SCOPE}" "${key}" --string-value "${placeholder_value}"
+        ok "Dev placeholder set: ${key}"
+      else
+        missing+=("${key}")
+        warn "GitHub OAuth secret MISSING: ${key}"
+      fi
+      continue
+    fi
+
+    value=$(get_secret_value "${APP_SECRET_SCOPE}" "${key}") || value=""
+    if [[ -z "${value}" ]]; then
+      unreadable+=("${key}")
+      warn "GitHub OAuth secret present but value could not be read for placeholder check: ${key}"
+    elif [[ "${value}" == "${placeholder_value}" ]]; then
+      placeholder+=("${key}")
+      [[ "${TARGET}" == "dev" ]] && warn "Dev placeholder still set: ${key}" || warn "GitHub OAuth secret is still a dev placeholder: ${key}"
+    else
+      ok "GitHub OAuth secret present: ${key}"
+    fi
+  done
+
+  if [[ "${TARGET}" == "dev" ]]; then
+    if [[ ${#unreadable[@]} -gt 0 ]]; then
+      warn "Could not verify GitHub OAuth placeholders for: ${unreadable[*]}"
+    fi
+    return 0
   fi
 
-  # github_client_secret — placeholder
-  if [[ "${existing_keys}" != *"github_client_secret"* ]]; then
-    databricks secrets put-secret "${APP_SECRET_SCOPE}" "github_client_secret" --string-value "dev-placeholder-github-client-secret"
-    ok "Dev placeholder set: github_client_secret"
-  else
-    log "Secret already present: github_client_secret"
+  if [[ ${#unreadable[@]} -gt 0 ]]; then
+    warn "GitHub OAuth secret values could not be read from CLI; skipping placeholder comparison for: ${unreadable[*]}"
+    warn "If these are still dev placeholders, GitHub OAuth login will fail until real credentials are stored."
+  fi
+
+  if [[ ${#missing[@]} -gt 0 || ${#placeholder[@]} -gt 0 ]]; then
+    echo ""
+    echo "  ============================================================="
+    echo "  ACTION REQUIRED: Provision real GitHub OAuth App credentials."
+    echo "  ============================================================="
+    echo ""
+    [[ ${#missing[@]} -gt 0 ]] && echo "  Missing: ${missing[*]}"
+    [[ ${#placeholder[@]} -gt 0 ]] && echo "  Still placeholders: ${placeholder[*]}"
+    echo ""
+    echo "  Create a GitHub OAuth App with callback URL:"
+    echo "    https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/auth/github/callback"
+    echo ""
+    echo "  Store the credentials in this target's secret scope:"
+    echo "    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_id \\\"
+    echo "      --string-value \"<real-github-oauth-client-id>\""
+    echo "    databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_secret \\\"
+    echo "      --string-value \"<real-github-oauth-client-secret>\""
+    echo ""
+    echo "  Then re-run: ./deploy.sh --target ${TARGET} --app"
+    echo ""
+    fail "GitHub OAuth secret check failed."
   fi
 }
 
@@ -974,6 +1087,7 @@ if [[ "${DEPLOY_APP}" == true ]]; then
     resolve_app_bundle_vars
     write_persona_issuer_secret
     ensure_dev_placeholder_secrets
+    check_or_provision_github_oauth_secrets
   fi
   if [[ ${#APP_DEPLOY_ARGS[@]} -gt 0 ]]; then
     deploy_bundle "${APP_BUNDLE}" "${APP_DEPLOY_ARGS[@]}"
