@@ -6,6 +6,7 @@ import { dcrRouter } from './routes/dcr.js';
 import { personaTokenRouter } from './routes/persona-token.js';
 import { wellKnownRouter } from './routes/well-known.js';
 import type { Db } from './db/index.js';
+import { installLakebaseSearchPath } from './db/searchPath.js';
 import { runMigrations } from './migrations/migrate.js';
 import { SERVER_INFO } from './constants.js';
 
@@ -19,12 +20,16 @@ if (!process.env.HI_GENIE_JWT_SIGNING_KEY) {
   }
 }
 
+// Must run before createApp(): @databricks/lakebase's parsePoolConfig() drops
+// pool.options ('-c search_path=...') entirely, so it never reaches pg.Pool —
+// confirmed live (crashed prod with `relation "project_members" does not
+// exist` on every persona-token/MCP call after the app-schema migration).
+// See server/db/searchPath.ts for the full mechanism and why this is the only
+// reliable fix available from application code.
+installLakebaseSearchPath();
+
 const AppKit = createApp({
-  // `options` is forwarded verbatim to every pg.Pool the lakebase plugin
-  // creates — both the SP pool and every per-user OBO pool (see
-  // LakebasePlugin.setup, which spreads this.config.pool into both) — so
-  // this one setting covers every connection without touching call sites.
-  plugins: [server(), lakebase({ pool: { options: '-c search_path=app,public' } })],
+  plugins: [server(), lakebase()],
 
   async onPluginsReady(appkit) {
     const db = appkit.lakebase as unknown as Db;
