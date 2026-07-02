@@ -6,6 +6,7 @@ import type {
   Project,
   ProjectMember,
   Agent,
+  AgentReadCursor,
   Thread,
   Message,
   SessionSummary,
@@ -154,10 +155,23 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       thread_id: z.string().describe('Thread ID'),
       up_to_message_id: z.string().describe('Mark all messages up to and including this ID as read'),
     },
-    async (_args) => {
-      // TODO: messages table has no read_at column in the Track A DDL.
-      // This is a stub until a message_reads table or read_at column is added.
-      return ok({ ok: true });
+    async ({ thread_id, up_to_message_id }) => {
+      const msgCheck = await db.query<{ id: string }>(
+        'SELECT id FROM messages WHERE id = $1 AND thread_id = $2',
+        [up_to_message_id, thread_id],
+      );
+      if (msgCheck.rows.length === 0) return err('Message not found in this thread');
+
+      const result = await db.asUser(req).query<AgentReadCursor>(
+        `INSERT INTO agent_read_cursors (thread_id, agent_id, last_read_message_id, updated_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (thread_id, agent_id) DO UPDATE
+           SET last_read_message_id = EXCLUDED.last_read_message_id,
+               updated_at = now()
+         RETURNING *`,
+        [thread_id, agentId, up_to_message_id],
+      );
+      return ok(result.rows[0]);
     },
   );
 

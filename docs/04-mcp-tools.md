@@ -20,7 +20,7 @@ membership are **never trusted from the request body**.
 | `start_thread` | Open a thread with a subject and optional `branch_ref` / `task_id` linkage. |
 | `send_message` | Send to a nickname within a `thread_id` (or open a new thread inline). |
 | `get_messages` | Fetch unread/all messages for the calling persona, by thread. |
-| `mark_messages_read` | Acknowledge messages. |
+| `mark_messages_read` | Persist a read cursor for the calling agent up to a given message ID. Validates the message belongs to the thread; upserts into `agent_read_cursors`. |
 | `write_session_summary` | Record persona (+ optional sub-agent label) memory: summary, blockers, next steps. |
 | `get_session_summaries` | Read own or a teammate's summaries, by project / persona / date. |
 

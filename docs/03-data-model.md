@@ -32,6 +32,10 @@ and branches can reference them without a painful migration once the board lands
 | `domain` | e.g. "Swift/Xcode client" |
 | `model` | model backing the persona |
 | `responsibilities` | text; **also drives the sparse-checkout cone** |
+| `omnigent_server` | nullable; Omnigent server URL (only populated for Omnigent-hosted personas) |
+| `omnigent_session_id` | nullable; Omnigent session ID |
+| `omnigent_host_id` | nullable; Omnigent host ID |
+| `omnigent_runner_bound` | boolean, default false; true when an Omnigent runner is actively bound |
 | `created_at` | |
 
 ### `agent_grants` — which users may assume a persona
@@ -130,6 +134,33 @@ and branches can reference them without a painful migration once the board lands
 | `name` | |
 | `starts_on` | |
 | `ends_on` | |
+
+### `agent_read_cursors` — per-agent read tracking
+| Column | Notes |
+|---|---|
+| `thread_id` | FK → threads (PK part 1) |
+| `agent_id` | FK → agents (PK part 2) |
+| `last_read_message_id` | FK → messages (nullable, SET NULL on delete) |
+| `updated_at` | |
+
+Tracks the last message each agent has read in each thread. Updated via the
+`mark_messages_read` MCP tool. Composite PK `(thread_id, agent_id)` — one cursor per
+agent per thread.
+
+## NOTIFY channel: `hi_genie_messages`
+
+An AFTER INSERT trigger on `messages` fires `pg_notify('hi_genie_messages', ...)` with
+a JSON payload:
+
+```json
+{"message_id": "<uuid>", "thread_id": "<uuid>", "to_agent_id": "<uuid or empty>"}
+```
+
+All values are strings. `to_agent_id` is an empty string when the message has no
+specific recipient. This payload contract is consumed by the bridge service that wakes
+Omnigent-hosted agent sessions on new messages (instead of polling). The bridge service
+is built separately — it LISTENs on this channel and uses the `agents` routing columns
+(`omnigent_server`, `omnigent_session_id`, `omnigent_host_id`) to dispatch.
 
 ## Relationships at a glance
 

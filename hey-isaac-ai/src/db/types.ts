@@ -24,6 +24,10 @@ export interface Agent {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  omnigent_server: string | null;
+  omnigent_session_id: string | null;
+  omnigent_host_id: string | null;
+  omnigent_runner_bound: boolean;
 }
 
 export interface AgentGrant {
@@ -115,6 +119,13 @@ export interface DcrClient {
   owner_user_id: string;
   project_id: string | null;
   created_at: Date;
+  updated_at: Date;
+}
+
+export interface AgentReadCursor {
+  thread_id: string;
+  agent_id: string;
+  last_read_message_id: string | null;
   updated_at: Date;
 }
 
