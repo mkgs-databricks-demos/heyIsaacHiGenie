@@ -156,7 +156,7 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       up_to_message_id: z.string().describe('Mark all messages up to and including this ID as read'),
     },
     async ({ thread_id, up_to_message_id }) => {
-      const msgCheck = await db.query<{ id: string }>(
+      const msgCheck = await db.asUser(req).query<{ id: string }>(
         'SELECT id FROM messages WHERE id = $1 AND thread_id = $2',
         [up_to_message_id, thread_id],
       );
