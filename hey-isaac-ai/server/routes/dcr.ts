@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import type { Request } from 'express';
 import type { Db } from '../db/index.js';
 import type { DcrClient } from '../../src/db/types.js';
 import { databricksRealIpKeyGenerator } from '../utils/rate-limit.js';
@@ -17,15 +18,31 @@ function hashSecret(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
 }
 
+function verifyDcrSecret(req: Request): boolean {
+  const configured = process.env.HI_GENIE_DCR_SHARED_SECRET;
+  const provided = req.header('x-dcr-shared-secret');
+
+  if (!configured || !provided) {
+    return false;
+  }
+
+  const configuredBuffer = Buffer.from(configured, 'utf8');
+  const providedBuffer = Buffer.from(provided, 'utf8');
+
+  if (providedBuffer.length !== configuredBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, configuredBuffer);
+}
+
 export function dcrRouter(db: Db) {
   const router = Router();
 
   // RFC 7591 — Dynamic Client Registration endpoint.
   // Databricks calls this when auto-registering the UC HTTP connection.
   router.post('/', limiter, async (req, res) => {
-    const configured = process.env.HI_GENIE_DCR_SHARED_SECRET;
-    const provided = req.header('x-dcr-shared-secret');
-    if (!configured || provided !== configured) {
+    if (!verifyDcrSecret(req)) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
@@ -77,6 +94,11 @@ export function dcrRouter(db: Db) {
 
   // Lookup for token endpoint validation (used internally)
   router.get('/:client_id', limiter, async (req, res) => {
+    if (!verifyDcrSecret(req)) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
+
     const result = await db.query<DcrClient>(
       'SELECT * FROM dcr_clients WHERE client_id = $1',
       [req.params.client_id],
