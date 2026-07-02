@@ -22,20 +22,38 @@ import pg from 'pg';
 // Must run before AppKit's lakebase() plugin setup() (i.e. before
 // createApp()) so every pool it constructs — SP and OBO alike — inherits the
 // patched constructor.
+let installed = false;
+
 export function installLakebaseSearchPath(schema = 'app, public'): void {
+  if (installed) return;
+  installed = true;
+
   const OriginalPool = pg.Pool;
 
   class SearchPathPool extends OriginalPool {
     constructor(config?: pg.PoolConfig) {
-      super(config);
-      // Fires once per new physical connection (not per checkout), which is
-      // exactly the documented `pg` pattern for connection-scoped session
-      // setup: https://node-postgres.com/apis/pool#events
-      this.on('connect', (client) => {
-        client.query(`SET search_path TO ${schema}`).catch((err) => {
-          console.error('[db] failed to set search_path on new Lakebase connection:', err);
-        });
-      });
+      super({
+        ...config,
+        // pg-pool (see newClient() in pg-pool/index.js) awaits this hook
+        // and only proceeds to hand the client to any pool.connect()/
+        // pool.query() caller if it resolves. If it rejects, pg-pool ends
+        // the client, drops it from its internal client list, and rejects
+        // the *pending acquisition* with our error — so a connection whose
+        // search_path we failed to set is never handed to a query, instead
+        // of silently running unqualified queries against the wrong schema
+        // (which is exactly how the original bug crashed the process).
+        // This is the correct/only pg-pool lifecycle hook for this: unlike
+        // a 'connect' event listener (fire-and-forget, no way to stop the
+        // client being used), onConnect is awaited before acquisition.
+        onConnect: async (client: pg.PoolClient) => {
+          try {
+            await client.query(`SET search_path TO ${schema}`);
+          } catch (err) {
+            console.error('[db] failed to set search_path on new Lakebase connection — rejecting this connection:', err);
+            throw err;
+          }
+        },
+      } as pg.PoolConfig);
     }
   }
 
