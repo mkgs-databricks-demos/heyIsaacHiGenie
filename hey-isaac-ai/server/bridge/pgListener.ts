@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import pg from 'pg';
-import type { ClientConfig } from 'pg';
+import type { ClientConfig, PoolConfig } from 'pg';
 
 /**
  * The Postgres NOTIFY channel this bridge listens on. Defined by the sibling
@@ -33,9 +33,9 @@ export interface PgListenerOptions {
 }
 
 /**
- * Build a raw `pg` connection config for the bridge.
+ * Build a `pg` connection config for the bridge.
  *
- * We need a DEDICATED connection here because LISTEN/NOTIFY requires a single,
+ * We need our OWN connections here because LISTEN/NOTIFY requires a single,
  * persistent session, and the app's `Db` interface (server/db/index.ts) only
  * exposes `query`/`asUser` over an AppKit-managed pool — it has no LISTEN hook.
  *
@@ -50,19 +50,15 @@ export interface PgListenerOptions {
  *   - There is deliberately NO PGPASSWORD/PGUSER static secret. Lakebase
  *     authenticates with a SHORT-LIVED OAUTH TOKEN minted per connection.
  *     `@databricks/lakebase`'s `getLakebasePgConfig()` returns a pg config whose
- *     `password` is an async callback that mints/refreshes that token.
+ *     `password` is an async CALLBACK that mints/refreshes that token — it must
+ *     NOT be resolved to a static string for a long-lived pool (see below).
  *
- * Resolution order:
+ * Resolution order (shared by both the pool and client builders):
  *   1. DATABASE_URL  — a plain connection string (local dev / non-Lakebase PG).
  *   2. LAKEBASE_ENDPOINT present — Lakebase OAuth mode via @databricks/lakebase.
  *   3. Plain PG* env vars — local dev against any Postgres (PGPASSWORD auth).
- *
- * The OAuth token is resolved to a concrete string here: `pg.Client` only
- * supports a string `password` (the function form is a `pg.Pool`-only feature),
- * and long-lived LISTEN sessions re-mint a fresh token on every reconnect, so
- * token expiry is handled naturally by the reconnect loop.
  */
-export async function buildPgClientConfig(): Promise<ClientConfig> {
+export async function buildPgPoolConfig(): Promise<PoolConfig> {
   if (process.env.DATABASE_URL) {
     return { connectionString: process.env.DATABASE_URL };
   }
@@ -70,13 +66,14 @@ export async function buildPgClientConfig(): Promise<ClientConfig> {
   if (process.env.LAKEBASE_ENDPOINT) {
     // Lakebase OAuth mode. Imported lazily so the bridge still runs (via the
     // plain-env path below) in environments where the package is unavailable.
+    //
+    // For a POOL we keep `cfg.password` as the async token CALLBACK. `pg.Pool`
+    // invokes it fresh for every new connection it opens, so short-lived OAuth
+    // tokens are re-minted per pooled connection — a token expiring never wedges
+    // the pool. (Resolving it to a string here, as we do for the one-shot
+    // Client below, would pin an expired token forever.)
     const { getLakebasePgConfig } = await import('@databricks/lakebase');
-    const cfg = getLakebasePgConfig();
-    let password = cfg.password;
-    if (typeof password === 'function') {
-      password = await (password as () => string | Promise<string>)();
-    }
-    return { ...cfg, password } as ClientConfig;
+    return getLakebasePgConfig() as PoolConfig;
   }
 
   const sslmode = process.env.PGSSLMODE;
@@ -91,6 +88,25 @@ export async function buildPgClientConfig(): Promise<ClientConfig> {
         ? { rejectUnauthorized: false }
         : undefined,
   };
+}
+
+/**
+ * Build a raw `pg.Client` config for the dedicated LISTEN connection.
+ *
+ * A `pg.Client` only supports a STRING `password` (the async-callback form is a
+ * `pg.Pool`-only feature), so in Lakebase mode we resolve the token callback to
+ * a concrete string here. That's safe for the LISTEN client because its
+ * `connect()` runs this builder fresh on every (re)connect — the reconnect loop
+ * re-mints a token each time — so an expired token is replaced on reconnect.
+ */
+export async function buildPgClientConfig(): Promise<ClientConfig> {
+  const cfg = await buildPgPoolConfig();
+  const password = (cfg as { password?: unknown }).password;
+  if (typeof password === 'function') {
+    const resolved = await (password as () => string | Promise<string>)();
+    return { ...cfg, password: resolved } as ClientConfig;
+  }
+  return cfg as ClientConfig;
 }
 
 /**

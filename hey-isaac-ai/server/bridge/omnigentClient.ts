@@ -61,8 +61,10 @@ export interface DeliverResult {
   queued: boolean;
   /** Omnigent's queue item id, when returned. */
   itemId?: string;
-  /** True when a runner had to be (re)bound as part of delivery. */
-  reboundRunner: boolean;
+  /** True when a runner was bound pre-emptively (it wasn't already bound). */
+  boundRunner: boolean;
+  /** True when a 503 runner_unavailable forced a rebind + retry-once. */
+  reboundAfter503: boolean;
 }
 
 export class OmnigentError extends Error {
@@ -163,19 +165,20 @@ export class OmnigentClient {
    */
   async deliverMessage(params: DeliverParams): Promise<DeliverResult> {
     const { hostId, sessionId, workspace, message, runnerBound } = params;
-    let reboundRunner = false;
+    let boundRunner = false;
+    let reboundAfter503 = false;
 
     if (!runnerBound) {
       await this.bindRunner({ hostId, sessionId, workspace });
-      reboundRunner = true;
+      boundRunner = true;
     }
 
     let res = await this.postEvent(sessionId, message);
 
     if (res.status === 503 && isRunnerUnavailable(res.body)) {
-      // Runner went away — (re)bind and retry exactly once.
+      // Runner went away — rebind and retry exactly once.
       await this.bindRunner({ hostId, sessionId, workspace });
-      reboundRunner = true;
+      reboundAfter503 = true;
       res = await this.postEvent(sessionId, message);
     }
 
@@ -184,7 +187,7 @@ export class OmnigentClient {
         typeof res.body === 'object' && res.body !== null
           ? (res.body as { item_id?: string }).item_id
           : undefined;
-      return { queued: true, itemId, reboundRunner };
+      return { queued: true, itemId, boundRunner, reboundAfter503 };
     }
 
     throw new OmnigentError(

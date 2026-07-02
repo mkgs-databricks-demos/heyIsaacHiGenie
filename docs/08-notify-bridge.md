@@ -109,9 +109,17 @@ read via `getAuthToken()` (isolated so it's swappable later).
 | `PGHOST`, `PGDATABASE`, `PGPORT`, `PGSSLMODE` | Auto-injected by the platform at deploy time; also used for the plain-`pg` fallback path (local dev). |
 | `PGUSER`, `PGPASSWORD` | Plain-`pg` fallback only (local dev against any Postgres). |
 
-The dedicated LISTEN connection resolves the OAuth token to a concrete string at
-connect time (a `pg.Client` only supports a string password); the reconnect loop
-re-mints a fresh token on every reconnect, so token expiry is handled naturally.
+In Lakebase mode the bridge holds two kinds of connection, and each re-mints the
+short-lived OAuth token on its own cadence so an expiring token never wedges it:
+
+- **The dedicated LISTEN connection** is a `pg.Client`, which only supports a
+  *string* password — so the token is resolved to a concrete string at connect
+  time. Its `connect()` runs the config builder fresh on every (re)connect, so
+  the **reconnect loop re-mints a token on each reconnect**.
+- **The lookup connection pool** is a `pg.Pool`, which supports a *function*
+  password. The bridge passes the async token callback through unresolved, so
+  the **pool re-mints a token for every new connection it opens** (not tied to
+  the client's reconnects — a different, per-pooled-connection cadence).
 
 **Omnigent / bridge:**
 

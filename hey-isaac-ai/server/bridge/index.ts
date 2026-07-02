@@ -14,7 +14,7 @@
  * See docs/08-notify-bridge.md.
  */
 import pg from 'pg';
-import { PgListener, buildPgClientConfig, NOTIFY_CHANNEL } from './pgListener.js';
+import { PgListener, buildPgPoolConfig, NOTIFY_CHANNEL } from './pgListener.js';
 import type { NotifyPayload } from './pgListener.js';
 import { OmnigentClient } from './omnigentClient.js';
 
@@ -154,7 +154,8 @@ async function handleNotification(pool: pg.Pool, payload: NotifyPayload): Promis
       outcome: 'delivered',
       message_id: payload.message_id,
       item_id: result.itemId ?? null,
-      rebound_runner: result.reboundRunner,
+      bound_runner: result.boundRunner,
+      rebound_after_503: result.reboundAfter503,
     });
   } catch (err) {
     // Full context, then give up (no infinite retry, no crash).
@@ -172,8 +173,11 @@ async function handleNotification(pool: pg.Pool, payload: NotifyPayload): Promis
 
 async function main(): Promise<void> {
   // Dedicated pool for the (small) agent/message lookups. Separate from the
-  // LISTEN connection, which must stay a single persistent session.
-  const pool = new pg.Pool({ ...(await buildPgClientConfig()), max: 2 });
+  // LISTEN connection, which must stay a single persistent session. We use the
+  // POOL config builder here (not the client one) so that in Lakebase mode the
+  // OAuth-token `password` stays an async callback — `pg.Pool` re-invokes it for
+  // every new connection, so an expiring token never wedges the pool.
+  const pool = new pg.Pool({ ...(await buildPgPoolConfig()), max: 2 });
   pool.on('error', (err) => log({ level: 'warn', event: 'pool_error', error: String(err) }));
 
   const listener = new PgListener();
