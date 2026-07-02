@@ -62,6 +62,7 @@ APP_BUNDLE="hey-isaac-ai"
 PLATFORM_BOOTSTRAP_JOB="platform_bootstrap"
 CONFIGURE_APP_SPN_JOB="configure_app_spn"
 POST_DEPLOY_VALIDATION_JOB="post_deploy_validation"
+REQUIRED_CLI_VERSION="1.5.0"
 
 # Auto-provisioned by bootstrap job
 AUTO_PROVISIONED_KEYS=(workspace_url)
@@ -177,6 +178,27 @@ print('UNKNOWN')
 
 is_compute_ready() { [[ "$1" == "ACTIVE" ]] || [[ "$1" == "RUNNING" ]]; }
 
+version_at_least() {
+  local current="$1" required="$2" current_major current_minor current_patch required_major required_minor required_patch
+  IFS=. read -r current_major current_minor current_patch <<< "${current}"
+  IFS=. read -r required_major required_minor required_patch <<< "${required}"
+  (( current_major > required_major )) && return 0
+  (( current_major < required_major )) && return 1
+  (( current_minor > required_minor )) && return 0
+  (( current_minor < required_minor )) && return 1
+  (( current_patch >= required_patch ))
+}
+
+check_databricks_cli_version() {
+  local raw_version cli_version upgrade_command
+  upgrade_command="curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v1.5.0/install.sh | sh"
+  raw_version=$(databricks -v 2>/dev/null) || fail "Could not determine Databricks CLI version. Upgrade with: ${upgrade_command}"
+  cli_version=$(echo "${raw_version}" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)
+  [[ -n "${cli_version}" ]] || fail "Could not parse Databricks CLI version from '${raw_version}'. Upgrade with: ${upgrade_command}"
+  version_at_least "${cli_version}" "${REQUIRED_CLI_VERSION}" || \
+    fail "Databricks CLI ${cli_version} is older than required ${REQUIRED_CLI_VERSION}. Upgrade with: ${upgrade_command}"
+}
+
 cd_bundle() {
   local dir="$1"; local i
   for ((i=1; i<=3; i++)); do
@@ -193,6 +215,8 @@ cd_bundle() {
 # --------------------------------------------------------------------------- #
 command -v databricks &>/dev/null || fail "Databricks CLI not found."
 command -v python3    &>/dev/null || fail "python3 not found."
+# Incident: PR #25 showed Databricks CLI --output json shapes are undocumented/unstable, so pin+gate instead of trusting forward-compatible parsing.
+check_databricks_cli_version
 
 # --------------------------------------------------------------------------- #
 # resolve_user_handle — derive user_handle from CLI profile for dev target

@@ -1,5 +1,6 @@
 bundle:
   name: hey-isaac-ai
+  databricks_cli_version: ">= 1.5.0"
 
 include:
   - resources/*.yml
