@@ -92,11 +92,10 @@ export function githubWebhookRouter(db: Db) {
             } else {
               await db.query(
                 `INSERT INTO app.pull_requests
-                   (project_id, pr_number, title, status, repo_url, pr_url, opened_by, branch_ref, base_branch, author_github_login, updated_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+                   (project_id, pr_number, status, repo_url, pr_url, opened_by, branch_ref, base_branch, author_github_login, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
                  ON CONFLICT (project_id, pr_number) DO UPDATE
-                   SET title               = EXCLUDED.title,
-                       status              = EXCLUDED.status,
+                   SET status              = EXCLUDED.status,
                        repo_url            = EXCLUDED.repo_url,
                        pr_url              = EXCLUDED.pr_url,
                        branch_ref          = EXCLUDED.branch_ref,
@@ -106,7 +105,6 @@ export function githubWebhookRouter(db: Db) {
                 [
                   project_id,
                   prNumber,
-                  pr.title,
                   status,
                   repo.html_url,
                   pr.html_url,

@@ -6,6 +6,7 @@ import { migration004 } from './004_rls_policies.js';
 import { migration005 } from './005_app_schema.js';
 import { migration006 } from './006_omnigent_routing.js';
 import { migration007 } from './007_github_tokens.js';
+import { migration008 } from './008_replica_identity.js';
 
 export interface Migration {
   name: string;
@@ -20,7 +21,13 @@ const migrations: Migration[] = [
   migration005,
   migration006,
   migration007,
+  migration008,
 ];
+
+// CONVENTION: every CREATE TABLE in a migration must be followed immediately by
+//   ALTER TABLE <name> REPLICA IDENTITY FULL;
+// This ensures CDC / logical-replication consumers receive full before/after row
+// images for all tables from the moment the table is created.
 
 // Explicitly qualified to public — once search_path is app, public (see
 // db/index.ts), an unqualified CREATE TABLE would land _migrations in `app`

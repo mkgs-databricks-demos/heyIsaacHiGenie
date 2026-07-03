@@ -14,6 +14,8 @@ export const migration001: Migration = {
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    ALTER TABLE projects REPLICA IDENTITY FULL;
+
     -- 2. project_members
     CREATE TABLE IF NOT EXISTS project_members (
       project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -24,6 +26,7 @@ export const migration001: Migration = {
       CHECK (role IN ('owner', 'member')),
       CHECK (user_id = lower(user_id))
     );
+    ALTER TABLE project_members REPLICA IDENTITY FULL;
 
     -- 3. agents
     CREATE TABLE IF NOT EXISTS agents (
@@ -38,6 +41,7 @@ export const migration001: Migration = {
       CHECK (nickname ~ '^[a-z][a-z0-9_-]{1,31}$'),
       CHECK (created_by = lower(created_by))
     );
+    ALTER TABLE agents REPLICA IDENTITY FULL;
 
     -- 4. agent_grants
     CREATE TABLE IF NOT EXISTS agent_grants (
@@ -49,6 +53,7 @@ export const migration001: Migration = {
       CHECK (user_id = lower(user_id)),
       CHECK (granted_by = lower(granted_by))
     );
+    ALTER TABLE agent_grants REPLICA IDENTITY FULL;
 
     -- 5. tasks
     CREATE TABLE IF NOT EXISTS tasks (
@@ -64,6 +69,7 @@ export const migration001: Migration = {
       CHECK (status IN ('open', 'in_progress', 'blocked', 'done', 'cancelled')),
       CHECK (created_by = lower(created_by))
     );
+    ALTER TABLE tasks REPLICA IDENTITY FULL;
 
     -- 6. threads
     CREATE TABLE IF NOT EXISTS threads (
@@ -76,6 +82,7 @@ export const migration001: Migration = {
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       CHECK (created_by = lower(created_by))
     );
+    ALTER TABLE threads REPLICA IDENTITY FULL;
 
     -- 7. messages
     CREATE TABLE IF NOT EXISTS messages (
@@ -91,6 +98,7 @@ export const migration001: Migration = {
       CHECK (role IN ('user', 'assistant', 'system', 'tool')),
       CHECK (author_user_id IS NULL OR author_user_id = lower(author_user_id))
     );
+    ALTER TABLE messages REPLICA IDENTITY FULL;
 
     -- 8. session_summaries
     CREATE TABLE IF NOT EXISTS session_summaries (
@@ -104,6 +112,7 @@ export const migration001: Migration = {
       CHECK ((author_user_id IS NULL) <> (parent_agent_id IS NULL)),
       CHECK (author_user_id IS NULL OR author_user_id = lower(author_user_id))
     );
+    ALTER TABLE session_summaries REPLICA IDENTITY FULL;
 
     -- 9. repo_config
     CREATE TABLE IF NOT EXISTS repo_config (
@@ -113,6 +122,7 @@ export const migration001: Migration = {
       updated_by  TEXT NOT NULL,
       CHECK (updated_by = lower(updated_by))
     );
+    ALTER TABLE repo_config REPLICA IDENTITY FULL;
 
     -- 10. agent_checkout_spec
     CREATE TABLE IF NOT EXISTS agent_checkout_spec (
@@ -129,6 +139,7 @@ export const migration001: Migration = {
       ),
       CHECK (updated_by = lower(updated_by))
     );
+    ALTER TABLE agent_checkout_spec REPLICA IDENTITY FULL;
 
     -- 11. pull_requests
     CREATE TABLE IF NOT EXISTS pull_requests (
@@ -147,6 +158,7 @@ export const migration001: Migration = {
       CHECK (status IN ('draft', 'open', 'merged', 'closed')),
       CHECK (opened_by = lower(opened_by))
     );
+    ALTER TABLE pull_requests REPLICA IDENTITY FULL;
 
     -- 12. dcr_clients
     CREATE TABLE IF NOT EXISTS dcr_clients (
@@ -161,6 +173,7 @@ export const migration001: Migration = {
       updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
       CHECK (owner_user_id = lower(owner_user_id))
     );
+    ALTER TABLE dcr_clients REPLICA IDENTITY FULL;
 
     -- 13. persona_token_jti (agent_id added in 002_phase1_trackb)
     CREATE TABLE IF NOT EXISTS persona_token_jti (
@@ -172,6 +185,7 @@ export const migration001: Migration = {
       expires_at  TIMESTAMPTZ NOT NULL,
       CHECK (human = lower(human))
     );
+    ALTER TABLE persona_token_jti REPLICA IDENTITY FULL;
 
     -- Base indexes
     CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id);

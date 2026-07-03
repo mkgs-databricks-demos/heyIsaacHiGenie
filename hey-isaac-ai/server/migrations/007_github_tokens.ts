@@ -12,6 +12,7 @@ export const migration007: Migration = {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE app.github_tokens REPLICA IDENTITY FULL;
 
     -- Extend pull_requests with webhook-observable columns
     ALTER TABLE app.pull_requests
