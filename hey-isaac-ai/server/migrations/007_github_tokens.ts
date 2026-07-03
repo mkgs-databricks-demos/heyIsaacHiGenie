@@ -32,5 +32,19 @@ export const migration007: Migration = {
           UNIQUE (project_id, pr_number);
       END IF;
     END $$;
+
+    -- Allow webhook-sourced pull_request rows with no thread/task linkage.
+    DO $body$ DECLARE
+      cname TEXT;
+    BEGIN
+      SELECT conname INTO cname
+      FROM pg_constraint
+      WHERE conrelid = 'app.pull_requests'::regclass
+        AND contype = 'c'
+        AND pg_get_constraintdef(oid) LIKE '%thread_id IS NOT NULL OR task_id IS NOT NULL%';
+      IF cname IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE app.pull_requests DROP CONSTRAINT ' || quote_ident(cname);
+      END IF;
+    END $body$;
   `,
 };

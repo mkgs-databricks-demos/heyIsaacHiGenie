@@ -57,6 +57,26 @@ resources:
             scope: ${var.secret_scope_name}
             key: github_client_secret
             permission: READ
+        - name: github-app-id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_app_id
+            permission: READ
+        - name: github-app-private-key
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_app_private_key
+            permission: READ
+        - name: github-app-installation-id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_installation_id
+            permission: READ
+        - name: github-webhook-secret
+          secret:
+            scope: ${var.secret_scope_name}
+            key: github_webhook_secret
+            permission: READ
 
       telemetry_export_destinations:
         - unity_catalog:

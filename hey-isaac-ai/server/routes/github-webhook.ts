@@ -67,68 +67,75 @@ export function githubWebhookRouter(db: Db) {
       }
 
       if (event === 'pull_request') {
-        const payload = body as PullRequestEvent;
-        const { action, number: prNumber, pull_request: pr, repository: repo } = payload;
+        try {
+          const payload = body as PullRequestEvent;
+          const { action, number: prNumber, pull_request: pr, repository: repo } = payload;
 
-        const statusMap: Record<string, string> = {
-          opened: 'open',
-          reopened: 'open',
-          closed: pr.merged ? 'merged' : 'closed',
-        };
+          const statusMap: Record<string, string> = {
+            opened: 'open',
+            reopened: 'open',
+            closed: pr.merged ? 'merged' : 'closed',
+          };
 
-        const status = statusMap[action];
-        if (status) {
-          // Match repo against repo_config.repos JSONB to find project_id
-          const configResult = await db.query<{ project_id: string }>(
-            `SELECT project_id FROM app.repo_config
-             WHERE repos @> $1::jsonb`,
-            [JSON.stringify([{ url: repo.html_url }])],
-          );
-          const project_id = configResult.rows[0]?.project_id ?? null;
-
-          if (!project_id) {
-            console.warn(`[github-webhook] PR #${prNumber}: no repo_config match for ${repo.html_url} — skipping upsert`);
-          } else {
-            await db.query(
-              `INSERT INTO app.pull_requests
-                 (project_id, pr_number, title, status, repo_url, pr_url, opened_by, branch_ref, base_branch, author_github_login, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
-               ON CONFLICT (project_id, pr_number) DO UPDATE
-                 SET title               = EXCLUDED.title,
-                     status              = EXCLUDED.status,
-                     repo_url            = EXCLUDED.repo_url,
-                     pr_url              = EXCLUDED.pr_url,
-                     branch_ref          = EXCLUDED.branch_ref,
-                     base_branch         = EXCLUDED.base_branch,
-                     author_github_login = EXCLUDED.author_github_login,
-                     updated_at          = now()`,
-              [
-                project_id,
-                prNumber,
-                pr.title,
-                status,
-                repo.html_url,
-                pr.html_url,
-                pr.user.login,
-                pr.head.ref,
-                pr.base.ref,
-                pr.user.login,
-              ],
+          const status = statusMap[action];
+          if (status) {
+            // Match repo against repo_config.repos JSONB to find project_id
+            const configResult = await db.query<{ project_id: string }>(
+              `SELECT project_id FROM app.repo_config
+               WHERE repos @> $1::jsonb`,
+              [JSON.stringify([{ url: repo.html_url }])],
             );
-          }
+            const project_id = configResult.rows[0]?.project_id ?? null;
 
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`[github-webhook] PR #${prNumber} ${action} → ${status} (project ${project_id ?? 'unmatched'})`);
+            if (!project_id) {
+              console.warn(`[github-webhook] PR #${prNumber}: no repo_config match for ${repo.html_url} — skipping upsert`);
+            } else {
+              await db.query(
+                `INSERT INTO app.pull_requests
+                   (project_id, pr_number, title, status, repo_url, pr_url, opened_by, branch_ref, base_branch, author_github_login, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+                 ON CONFLICT (project_id, pr_number) DO UPDATE
+                   SET title               = EXCLUDED.title,
+                       status              = EXCLUDED.status,
+                       repo_url            = EXCLUDED.repo_url,
+                       pr_url              = EXCLUDED.pr_url,
+                       branch_ref          = EXCLUDED.branch_ref,
+                       base_branch         = EXCLUDED.base_branch,
+                       author_github_login = EXCLUDED.author_github_login,
+                       updated_at          = now()`,
+                [
+                  project_id,
+                  prNumber,
+                  pr.title,
+                  status,
+                  repo.html_url,
+                  pr.html_url,
+                  pr.user.login.toLowerCase(),
+                  pr.head.ref,
+                  pr.base.ref,
+                  pr.user.login.toLowerCase(),
+                ],
+              );
+            }
+
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`[github-webhook] PR #${prNumber} ${action} → ${status} (project ${project_id ?? 'unmatched'})`);
+            }
           }
+        } catch (err) {
+          console.error('[github-webhook] pull_request handler error:', err);
+          res.status(400).json({ error: 'invalid_payload' });
+          return;
         }
 
-        res.json({ ok: true, action });
+        res.json({ ok: true, action: (body as PullRequestEvent).action });
         return;
       }
 
       if (event === 'push') {
-        // Stub — future branch tracking
-        console.log('[github-webhook] push event received (stub)');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[github-webhook] push event received (stub)');
+        }
         res.json({ ok: true });
         return;
       }

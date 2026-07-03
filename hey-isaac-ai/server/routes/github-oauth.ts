@@ -14,7 +14,7 @@ export function githubOAuthRouter(db: Db) {
       return;
     }
 
-    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const state = typeof req.query.state === 'string' ? req.query.state : null;
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: `${appUrl}/auth/github/callback`,
@@ -31,15 +31,16 @@ export function githubOAuthRouter(db: Db) {
     const clientSecret = process.env.HI_GENIE_GITHUB_CLIENT_SECRET;
     const appUrl = process.env.HI_GENIE_APP_URL;
 
-    const { code, state } = req.query;
+    const { code } = req.query;
+    const state = typeof req.query.state === 'string' ? req.query.state : null;
 
     if (!clientId || !clientSecret || !appUrl) {
-      res.status(503).json({ error: 'GitHub OAuth not configured', state: state ?? null });
+      res.status(503).json({ error: 'GitHub OAuth not configured', state });
       return;
     }
 
     if (typeof code !== 'string' || !code) {
-      res.status(400).json({ error: 'missing_code', state: state ?? null });
+      res.status(400).json({ error: 'missing_code', state });
       return;
     }
 
@@ -66,19 +67,19 @@ export function githubOAuthRouter(db: Db) {
       tokenData = await tokenRes.json() as Record<string, string>;
     } catch (err) {
       console.error('[github-oauth] token exchange error:', err);
-      res.status(502).json({ error: 'token_exchange_failed', state: state ?? null });
+      res.status(502).json({ error: 'token_exchange_failed', state });
       return;
     }
 
     if (tokenData.error) {
-      res.status(400).json({ error: tokenData.error, error_description: tokenData.error_description, state: state ?? null });
+      res.status(400).json({ error: tokenData.error, error_description: tokenData.error_description, state });
       return;
     }
 
     const { access_token, token_type = 'bearer', scope } = tokenData;
 
     if (!access_token) {
-      res.status(502).json({ error: 'no_access_token', state: state ?? null });
+      res.status(502).json({ error: 'no_access_token', state });
       return;
     }
 
@@ -101,26 +102,32 @@ export function githubOAuthRouter(db: Db) {
       userId = String(user.id);
     } catch (err) {
       console.error('[github-oauth] user fetch error:', err);
-      res.status(502).json({ error: 'user_fetch_failed', state: state ?? null });
+      res.status(502).json({ error: 'user_fetch_failed', state });
       return;
     }
 
-    await db.query(
-      `INSERT INTO app.github_tokens (user_id, access_token, token_type, scope, updated_at)
-       VALUES ($1, $2, $3, $4, now())
-       ON CONFLICT (user_id) DO UPDATE
-         SET access_token = EXCLUDED.access_token,
-             token_type   = EXCLUDED.token_type,
-             scope        = EXCLUDED.scope,
-             updated_at   = now()`,
-      [userId, access_token, token_type, scope ?? null],
-    );
+    try {
+      await db.query(
+        `INSERT INTO app.github_tokens (user_id, access_token, token_type, scope, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (user_id) DO UPDATE
+           SET access_token = EXCLUDED.access_token,
+               token_type   = EXCLUDED.token_type,
+               scope        = EXCLUDED.scope,
+               updated_at   = now()`,
+        [userId, access_token, token_type, scope ?? null],
+      );
+    } catch (err) {
+      console.error('[github-oauth] db upsert error:', err);
+      res.status(500).json({ error: 'db_error', state });
+      return;
+    }
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`[github-oauth] stored token for GitHub user ${userId}`);
     }
 
-    res.json({ ok: true, state: state ?? null });
+    res.json({ ok: true, state });
   });
 
   return router;
