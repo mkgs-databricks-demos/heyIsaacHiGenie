@@ -1,11 +1,18 @@
 import { Router } from 'express';
-import { randomBytes } from 'node:crypto';
 import sodium from 'libsodium-wrappers';
+import { extractOboIdentity } from '../middleware/auth.js';
 import { getInstallationToken } from '../github/app-auth.js';
 import type { Db } from '../db/index.js';
 
 export function reposRouter(db: Db): Router {
   const router = Router();
+
+  router.use((req, res, next) => {
+    if (!extractOboIdentity(req)) {
+      return res.status(401).json({ error: 'unauthenticated' });
+    }
+    return next();
+  });
 
   /**
    * GET /api/repos/status?project_id=<uuid>
@@ -125,8 +132,9 @@ export function reposRouter(db: Db): Router {
       }
       steps.push({ name: 'Verify GitHub App installation', status: 'ok' });
 
-      // Step 2: Generate a per-repo webhook secret
-      const webhookSecret = randomBytes(32).toString('hex');
+      // Step 2: Use the global webhook secret (must match github-webhook.ts verifier)
+      const webhookSecret = process.env.HI_GENIE_GITHUB_WEBHOOK_SECRET;
+      if (!webhookSecret) throw new Error('HI_GENIE_GITHUB_WEBHOOK_SECRET not configured');
 
       // Step 3: Set Actions secret
       const pkResp = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
@@ -228,17 +236,9 @@ export function reposRouter(db: Db): Router {
            ),
            updated_at = now(),
            updated_by = $3`,
-        [project_id, JSON.stringify([{ url: repoData.html_url }]), req.headers['x-forwarded-email'] ?? 'system'],
+        [project_id, JSON.stringify([{ url: repoData.html_url }]), (req.user ?? extractOboIdentity(req) ?? 'system').toLowerCase()],
       );
       steps.push({ name: 'Update repo_config', status: 'ok' });
-
-      // Step 7: Store webhook secret in Databricks secret scope
-      // (documented — operator must provision via deploy.sh or databricks CLI)
-      steps.push({
-        name: 'Note: HI_GENIE_WEBHOOK_SECRET must be added to Databricks secret scope',
-        status: 'ok',
-        detail: `Run: databricks secrets put-secret <scope> github_webhook_secret_${repo.replace('/', '_')} --string-value "${webhookSecret}"`,
-      });
 
       return res.json({ ok: true, steps, relay: { status: 'pending' } });
     } catch (err) {

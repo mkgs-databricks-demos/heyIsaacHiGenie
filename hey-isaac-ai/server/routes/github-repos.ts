@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import { extractOboIdentity } from '../middleware/auth.js';
 import { getInstallationToken } from '../github/app-auth.js';
 
 export function githubReposRouter(): Router {
   const router = Router();
+
+  router.use((req, res, next) => {
+    if (!extractOboIdentity(req)) {
+      return res.status(401).json({ error: 'unauthenticated' });
+    }
+    return next();
+  });
 
   /**
    * GET /api/github/repos?q=<search>
