@@ -34,18 +34,20 @@ correctly resolves to a persona; an external client does the same via the static
 ### Phase 4 — Frontend
 - Projects, agent roster (with cone-overlap warnings), message monitor, memory browser, dashboard.
 
-### Phase 5 — GitHub governance & linkage
+### Phase 5 — GitHub observe layer ✅ Done (PR #32)
+- Read-only GitHub App registered; webhook consumer (`POST /webhook/github`) live with HMAC
+  verification; OAuth flow (`/auth/github/login` + `/callback`) live.
+- PR events upsert `app.pull_requests`; `app.github_tokens` table for OAuth tokens.
+- All 14 `app.*` tables have `REPLICA IDENTITY FULL`; wal2delta CDC pipeline active.
+- Verified end-to-end against `mkgs-databricks-demos/genie_code_demo`.
+
+### Phase 5b — GitHub governance & linkage (next)
 - Governance tools `get_repo_config` / `get_my_checkout_spec`; linkage tools `link_branch` /
   `link_pull_request` (the **primary**, agent-push linkage path). **No executing git tools** —
   agents use their own GitHub MCP.
 - GitHub **branch protection** setup (the hard guard — now carries full weight); per-user OBO
   write identity + `Co-authored-by:` trailers; validate agent-reported branch names against the
   template and wire branch/PR into the work graph.
-
-### Phase 5b — GitHub observe layer (later)
-- Register a **read-only GitHub App** (custodied by the SPN's secret scope) for **webhook-based**
-  PR/branch observation — the authoritative lifecycle + reconciliation layer on top of agent-push.
-- Reconcile observed PRs back to agent-reported rows via the branch-name convention (join key).
 
 ### Phase 6 — Integration test
 - Connect **Genie** (via UC connection) and **Isaac** (static OAuth).
@@ -57,12 +59,11 @@ correctly resolves to a persona; an external client does the same via the static
 
 ## Immediate next steps
 
-1. **Run the Phase 0 auth spike** — highest-value de-risking action.
-2. **Settle the persona-token format** — JWT vs opaque+introspection; signing key storage;
-   TTL/rotation. (Decide during the spike.)
-3. **Confirm external runtime OAuth capability** — verify Isaac's runtime can do auth-code flow
-   with a static client and does **not** require DCR.
-4. **Scaffold Phase 1** once the spike validates the approach.
+1. **Merge PR #32** — all cross-reviews passed, Phase 5 verified end-to-end.
+2. **Phase 5b** — implement `get_repo_config`, `get_my_checkout_spec`, `link_branch`, `link_pull_request` MCP tools.
+3. **S2/S3 security hardening** — `timingSafeEqual` for DCR secret compare; auth guard on `GET /dcr/:client_id`.
+4. **wal2delta cycle verification** — confirm CDC data flowing to UC OTel tables after next wal2delta run.
+5. **Phase 7 — Agile board** — `tasks`/`sprints` UI + MCP tools, now that PRs are wired into the work graph.
 
 ## Risks & watch-items
 

@@ -77,9 +77,9 @@ hey-isaac-hi-genie/
 
 ---
 
-## Current Status: RLS + Per-Human Postgres Roles Live — App Schema Migration Merged
+## Current Status: Phase 5 GitHub Integration Live — CDC Pipeline Active
 
-### What is done (as of 2026-07-02)
+### What is done (as of 2026-07-03)
 - All architecture decisions finalized (see `docs/`)
 - Both DABs bundles (`hey-isaac-infra`, `hey-isaac-ai`) deployed to `dev` target on `fevm-hls-fde`
 - Lakebase project **`dev-hi-genie`**, branch **`dev-matthew-giglia`** live
@@ -105,6 +105,19 @@ hey-isaac-hi-genie/
 - **App-layer domain tables moved from `public` → `app` Postgres schema** (PR #27, merged
   `21c710a`) — matches the sibling `lakeLoom` project's convention. `_migrations` stays in
   `public`. See "Postgres Schema: `app` vs `public`" below.
+- **Phase 5 GitHub integration shipped** (PR #32, branch `add-github-oauth-secret-provisioning`):
+  - `GET /auth/github/login` + `GET /auth/github/callback` — OAuth flow, stores token in `app.github_tokens`
+  - `POST /webhook/github` — HMAC-verified (timingSafeEqual) webhook consumer; PR events upsert `app.pull_requests`
+  - Migration 007: `app.github_tokens` table; adds `branch_ref`, `base_branch`, `author_github_login` to `pull_requests`; UNIQUE(project_id, pr_number)
+  - Migration 008: sets `REPLICA IDENTITY FULL` on all 14 `app.*` tables; drops obsolete thread_id/task_id NOT NULL check constraint
+  - All future migrations must follow the CONVENTION: `ALTER TABLE <name> REPLICA IDENTITY FULL` immediately after every `CREATE TABLE`
+  - `app.yaml` + `hi_genie.app.yml` wired for all 6 GitHub secrets from secret scope
+  - `deploy.sh` checks/provisions all 6 GitHub secrets; Databricks Apps `users` group granted `CAN_USE` for webhook accessibility
+  - `package-lock.json` resolved URLs patched to public npm registry (Databricks proxy had cache miss on `xtend@4.0.2`)
+  - Verified end-to-end against `mkgs-databricks-demos/genie_code_demo` — webhook delivered, HMAC verified, PR row inserted
+- **wal2delta CDC pipeline active** — all 14 `app.*` tables at PENDING status; 4 UC OTel Delta
+  tables exist (`hls_fde_dev.dev_matthew_giglia_hi_genie.hi_genie_otel_{logs,traces,metrics,annotations}`)
+  — data will flow on next wal2delta cycle
 
 ### Active dev environment
 | Resource | Value |
@@ -249,10 +262,10 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 |---|---|---|
 | 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — Databricks Apps proxy blocks M2M tokens, U2M behaviour already confirmed equivalent |
 | 1 — Foundation | ✅ **Done** | 13-table Lakebase DDL (PR #16), idempotent TS migration runner (PR #18/#19), DB-backed DCR/JTI/persona authority + 12 MCP tools (PR #17), React frontend w/ Databricks retro branding (PR #21) |
-| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
+| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). GitHub OAuth creds ✅ done (O2, PR #32). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3). |
 | 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
-| 5 — GitHub integration | 🟡 **In progress** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007 + deploy.sh GitHub App secret provisioning — shipped in PR #32 |
+| 5 — GitHub integration | ✅ **Done** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007+008 + deploy.sh GitHub App secret provisioning — shipped in PR #32. Verified end-to-end against genie_code_demo. Phase 5b (governance MCP tools: get_repo_config, link_branch, link_pull_request) is next. |
 | 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
 | 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 
