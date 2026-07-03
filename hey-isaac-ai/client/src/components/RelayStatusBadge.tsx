@@ -11,7 +11,7 @@ export default function RelayStatusBadge({ lastDelivery }: RelayStatusBadgeProps
     );
   }
 
-  const ago = Date.now() - new Date(lastDelivery).getTime();
+  const ago = Math.max(0, Date.now() - new Date(lastDelivery).getTime());
   const minutes = Math.floor(ago / 60_000);
   const hours = Math.floor(ago / 3_600_000);
   const label = hours >= 1 ? `${hours}h ago` : minutes < 1 ? 'just now' : `${minutes}m ago`;

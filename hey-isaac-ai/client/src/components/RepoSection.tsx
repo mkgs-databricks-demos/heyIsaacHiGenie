@@ -15,6 +15,7 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRegister, setShowRegister] = useState(false);
+  const [resyncErrors, setResyncErrors] = useState<Record<string, string>>({});
 
   async function fetchRepos() {
     setLoading(true);
@@ -95,19 +96,33 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
                   <RelayStatusBadge lastDelivery={repo.last_delivery} />
                 </div>
               </div>
-              <button
-                onClick={async () => {
-                  await fetch('/api/repos/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
-                    body: JSON.stringify({ project_id: PROJECT_ID, repo: repo.url.replace('https://github.com/', '') }),
-                  });
-                  void fetchRepos();
-                }}
-                style={{ background: 'none', border: '1px solid var(--db-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--db-text-muted)' }}
-              >
-                Re-sync
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <button
+                  onClick={async () => {
+                    setResyncErrors(prev => ({ ...prev, [repo.url]: '' }));
+                    try {
+                      const resp = await fetch('/api/repos/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
+                        body: JSON.stringify({ project_id: PROJECT_ID, repo: repo.url.replace('https://github.com/', '') }),
+                      });
+                      if (!resp.ok) {
+                        setResyncErrors(prev => ({ ...prev, [repo.url]: `Re-sync failed: HTTP ${resp.status}` }));
+                        return;
+                      }
+                      void fetchRepos();
+                    } catch (e) {
+                      setResyncErrors(prev => ({ ...prev, [repo.url]: e instanceof Error ? e.message : String(e) }));
+                    }
+                  }}
+                  style={{ background: 'none', border: '1px solid var(--db-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--db-text-muted)' }}
+                >
+                  Re-sync
+                </button>
+                {resyncErrors[repo.url] && (
+                  <div style={{ color: 'var(--db-red)', fontSize: 11 }}>{resyncErrors[repo.url]}</div>
+                )}
+              </div>
             </div>
           ))}
         </div>

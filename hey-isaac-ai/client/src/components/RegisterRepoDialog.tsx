@@ -27,9 +27,12 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
       const resp = await fetch(`/api/github/repos?q=${encodeURIComponent(q)}`, {
         headers: { Authorization: `Bearer ${personaToken}` },
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as { repos: GithubRepo[] };
       setRepos(data.repos ?? []);
-    } catch { /* ignore */ }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+    }
     setLoadingRepos(false);
   }
 
@@ -41,6 +44,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
         body: JSON.stringify({ project_id: projectId, repo }),
       });
+      if (!resp.ok) { setErrorMsg(`Preflight failed: HTTP ${resp.status}`); setStep('error'); return; }
       setPreflightData(await resp.json());
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
@@ -57,6 +61,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
         body: JSON.stringify({ project_id: projectId, repo: selectedRepo }),
       });
+      if (!resp.ok) { setErrorMsg(`Registration failed: HTTP ${resp.status}`); setStep('error'); return; }
       const result = await resp.json() as RegisterRepoResult;
       setRegisterResult(result);
       setStep(result.ok ? 'done' : 'error');
@@ -105,6 +110,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
                 border: '1px solid var(--db-border)', fontSize: 13, marginBottom: 12, boxSizing: 'border-box',
               }}
             />
+            {step === 'pick' && errorMsg && <div style={{ color: 'var(--db-red)', fontSize: 12, marginBottom: 8 }}>{errorMsg}</div>}
             {loadingRepos && <div style={{ fontSize: 12, color: 'var(--db-text-muted)' }}>Searching…</div>}
             <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {repos.map((r) => (
