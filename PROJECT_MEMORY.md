@@ -260,13 +260,13 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 
 | Phase | Status | Description |
 |---|---|---|
-| 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — Databricks Apps proxy blocks M2M tokens, U2M behaviour already confirmed equivalent |
+| 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — ~~Apps proxy blocks M2M tokens~~ **CORRECTION (2026-07-03): Databricks Apps DO support SP M2M OAuth tokens via client_credentials grant** (docs: "Connect to an API Databricks app using token authentication", updated 2026-04-06). SP must have CAN_USE on the app; use `WorkspaceClient(client_id, client_secret).config.authenticate()` to get the Bearer token. |
 | 1 — Foundation | ✅ **Done** | 13-table Lakebase DDL (PR #16), idempotent TS migration runner (PR #18/#19), DB-backed DCR/JTI/persona authority + 12 MCP tools (PR #17), React frontend w/ Databricks retro branding (PR #21) |
 | 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). GitHub OAuth creds ✅ done (O2, PR #32). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3). |
 | 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
 | 5 — GitHub integration | ✅ **Done** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007+008 + deploy.sh GitHub App secret provisioning — shipped in PR #32. Verified end-to-end against genie_code_demo. Phase 5b (governance MCP tools: get_repo_config, link_branch, link_pull_request) is next. |
-| 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
+| 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) can now be implemented — ~~Apps proxy rejects M2M tokens~~ **CORRECTION (2026-07-03): SP M2M OAuth tokens ARE accepted by the Databricks Apps gateway**. Use SP `client_id`/`client_secret` with `WorkspaceClient.config.authenticate()`. |
 | 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 
 ---
@@ -440,6 +440,7 @@ production hardening.
 | S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
 | S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
 | ~~S4~~ | ~~DCR persistence~~ | **Closed (PR #17).** Client registry moved to a Lakebase `dcr_clients` table (SP pool, no RLS). This row was left stale in an earlier revision of this doc despite the Roadmap table already reflecting the fix — corrected here. | — |
+| S4b | External M2M auth | **CORRECTION (2026-07-03): Databricks Apps DO accept SP M2M OAuth tokens.** Prior note claiming "Apps proxy blocks M2M tokens" was an untested speculation. Documented in Databricks docs "Connect to an API Databricks app using token authentication" (updated 2026-04-06). SP must have `CAN_USE` on the app. Token pattern: `WorkspaceClient(host, client_id=..., client_secret=...).config.authenticate()` → `{"Authorization": "Bearer <token>"}`. This unblocks Redpanda Connect, Lambda/edge relays, and any server-to-server caller using SP credentials. | Verify with a live curl test (see `.polly/specs/m2m-curl-test.md`). |
 | S5 | RLS defense-in-depth | **Closed (PR #24).** All 11 project-scoped tables now have DB-level `USING`/`WITH CHECK` RLS policies, backed by lazy per-human Postgres role provisioning. Previously app-layer WHERE clauses were the *only* backstop. | — |
 | S6 | `mark_messages_read` stub | **Closed (PR #23).** `read_at` column + index added (migration `003`); `unread_only` now filters for real. | — |
 
