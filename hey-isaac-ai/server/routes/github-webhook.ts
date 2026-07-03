@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Db } from '../db/index.js';
 
@@ -29,19 +29,9 @@ type PullRequestEvent = {
 export function githubWebhookRouter(db: Db) {
   const router = Router();
 
-  router.post(
-    '/',
-    // Capture raw body before any json parsing for HMAC verification
-    (req, res, next) => {
-      const chunks: Buffer[] = [];
-      req.on('data', (chunk: Buffer) => chunks.push(chunk));
-      req.on('end', () => {
-        (req as any).rawBody = Buffer.concat(chunks);
-        next();
-      });
-      req.on('error', next);
-    },
-    async (req, res) => {
+  router.use(express.raw({ type: '*/*' }));
+
+  router.post('/', async (req, res) => {
       const webhookSecret = process.env.HI_GENIE_GITHUB_WEBHOOK_SECRET;
       if (!webhookSecret) {
         res.status(503).json({ error: 'webhook not configured' });
@@ -49,7 +39,7 @@ export function githubWebhookRouter(db: Db) {
       }
 
       const sig = req.headers['x-hub-signature-256'] as string | undefined;
-      const rawBody: Buffer = (req as any).rawBody ?? Buffer.alloc(0);
+      const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
 
       if (!verifySignature(webhookSecret, rawBody, sig)) {
         res.status(400).json({ error: 'invalid_signature' });
