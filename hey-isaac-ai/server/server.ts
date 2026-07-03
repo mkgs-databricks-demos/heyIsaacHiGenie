@@ -7,6 +7,8 @@ import { personaTokenRouter } from './routes/persona-token.js';
 import { wellKnownRouter } from './routes/well-known.js';
 import { githubOAuthRouter } from './routes/github-oauth.js';
 import { githubWebhookRouter } from './routes/github-webhook.js';
+import { reposRouter } from './routes/repos.js';
+import { githubReposRouter } from './routes/github-repos.js';
 import type { Db } from './db/index.js';
 import { installLakebaseSearchPath } from './db/searchPath.js';
 import { runMigrations } from './migrations/migrate.js';
@@ -67,6 +69,9 @@ const AppKit = createApp({
       // GitHub OAuth flow — write-lane per-user OBO auth for external agents
       app.use('/auth/github', githubOAuthRouter(db));
 
+      // Repo registration — mints GitHub App tokens, sets Actions secrets, upserts repo_config
+      app.use('/api/repos', reposRouter(db));
+      app.use('/api/github/repos', githubReposRouter());
 
       // Identity debug — useful during development to confirm OBO headers
       app.get('/api/me', (req, res) => {
