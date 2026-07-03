@@ -76,6 +76,13 @@ ADMIN_PROVISIONED_KEYS=(jwt_signing_key)
 GITHUB_CLIENT_ID_PLACEHOLDER="dev-placeholder-github-client-id"
 GITHUB_CLIENT_SECRET_PLACEHOLDER="dev-placeholder-github-client-secret"
 
+# Dev-only placeholders for GitHub App credentials (read/observe lane). Real
+# values are provisioned manually; placeholder stubs unblock dev deploys only.
+GITHUB_APP_ID_PLACEHOLDER="dev-placeholder-github-app-id"
+GITHUB_APP_PRIVATE_KEY_PLACEHOLDER="dev-placeholder-github-app-private-key"
+GITHUB_APP_INSTALLATION_ID_PLACEHOLDER="dev-placeholder-github-app-installation-id"
+GITHUB_WEBHOOK_SECRET_PLACEHOLDER="dev-placeholder-github-webhook-secret"
+
 REQUIRED_SCOPE_KEYS=("${AUTO_PROVISIONED_KEYS[@]}" "${ADMIN_PROVISIONED_KEYS[@]}")
 
 # Resolved at runtime
@@ -791,10 +798,14 @@ for s in items:
   local unreadable=()
   local key value placeholder_value
 
-  for key in github_client_id github_client_secret; do
+  for key in github_client_id github_client_secret github_app_id github_app_private_key github_installation_id github_webhook_secret; do
     case "${key}" in
-      github_client_id) placeholder_value="${GITHUB_CLIENT_ID_PLACEHOLDER}" ;;
-      github_client_secret) placeholder_value="${GITHUB_CLIENT_SECRET_PLACEHOLDER}" ;;
+      github_client_id)         placeholder_value="${GITHUB_CLIENT_ID_PLACEHOLDER}" ;;
+      github_client_secret)     placeholder_value="${GITHUB_CLIENT_SECRET_PLACEHOLDER}" ;;
+      github_app_id)            placeholder_value="${GITHUB_APP_ID_PLACEHOLDER}" ;;
+      github_app_private_key)   placeholder_value="${GITHUB_APP_PRIVATE_KEY_PLACEHOLDER}" ;;
+      github_installation_id)   placeholder_value="${GITHUB_APP_INSTALLATION_ID_PLACEHOLDER}" ;;
+      github_webhook_secret)    placeholder_value="${GITHUB_WEBHOOK_SECRET_PLACEHOLDER}" ;;
     esac
 
     if ! echo "${present_keys}" | grep -qx "${key}"; then
@@ -834,32 +845,42 @@ for s in items:
   if [[ ${#missing[@]} -gt 0 || ${#placeholder[@]} -gt 0 || ${#unreadable[@]} -gt 0 ]]; then
     cat <<EOF
 
-  =============================================================
-  ACTION REQUIRED: Provision real GitHub OAuth App credentials.
-  =============================================================
+  ==============================================================
+  ACTION REQUIRED: Provision real GitHub credentials (OAuth + App).
+  ==============================================================
 
 EOF
     [[ ${#missing[@]} -gt 0 ]] && echo "  Missing: ${missing[*]}"
     [[ ${#placeholder[@]} -gt 0 ]] && echo "  Still placeholders: ${placeholder[*]}"
     if [[ ${#unreadable[@]} -gt 0 ]]; then
       echo "  Could not verify as non-placeholder: ${unreadable[*]}"
-      echo "  Confirm these values manually or overwrite them with real GitHub OAuth App credentials."
+      echo "  Confirm these values manually or overwrite them with real GitHub credentials."
     fi
     cat <<EOF
 
-  Create a GitHub OAuth App with callback URL:
-    https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/auth/github/callback
-
-  Store the credentials in this target's secret scope:
+  GitHub OAuth App (write lane — external agent auth):
+    Create at https://github.com/settings/developers with callback URL:
+      https://${APP_NAME}-${APP_WORKSPACE_ID}.${APP_CLOUD}.databricksapps.com/auth/github/callback
     databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_id \\
       --string-value "<real-github-oauth-client-id>"
     databricks secrets put-secret ${APP_SECRET_SCOPE} github_client_secret \\
       --string-value "<real-github-oauth-client-secret>"
 
+  GitHub App (read/observe lane — webhooks):
+    Provision credentials from your registered GitHub App:
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_app_id \\
+      --string-value "<app-id>"
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_app_private_key \\
+      --string-value "<pem-private-key>"
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_installation_id \\
+      --string-value "<installation-id>"
+    databricks secrets put-secret ${APP_SECRET_SCOPE} github_webhook_secret \\
+      --string-value "<webhook-secret>"
+
   Then re-run: ./deploy.sh --target ${TARGET} --app
 
 EOF
-    fail "GitHub OAuth secret check failed."
+    fail "GitHub secret check failed."
   fi
 }
 

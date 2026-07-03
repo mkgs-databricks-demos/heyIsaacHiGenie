@@ -61,7 +61,9 @@ hey-isaac-hi-genie/
     │   └── routes/
     │       ├── mcp.ts              # Streamable-HTTP MCP server (whoami + ping tools)
     │       ├── dcr.ts              # RFC 7591 Dynamic Client Registration
-    │       └── persona-token.ts    # HMAC JWT persona token issuer
+    │       ├── persona-token.ts    # HMAC JWT persona token issuer
+    │       ├── github-oauth.ts     # GET /auth/github/login + /callback (write lane)
+    │       └── github-webhook.ts   # POST /webhook/github (read/observe lane)
     ├── client/
     │   ├── index.html
     │   ├── vite.config.ts
@@ -194,8 +196,12 @@ DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev
 | Key | How to provision |
 |---|---|
 | `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret dev_<your_user_handle>_hi_genie_credentials jwt_signing_key --string-value <value>` |
-| `github_client_id` | GitHub OAuth App client ID — Phase 5, not needed for spike |
-| `github_client_secret` | GitHub OAuth App client secret — Phase 5, not needed for spike |
+| `github_client_id` | GitHub OAuth App client ID (write lane) |
+| `github_client_secret` | GitHub OAuth App client secret (write lane) |
+| `github_app_id` | GitHub App ID (read/observe lane) |
+| `github_app_private_key` | GitHub App RSA private key PEM (read/observe lane) |
+| `github_installation_id` | GitHub App installation ID for the target org/repo |
+| `github_webhook_secret` | Webhook HMAC secret used to verify `X-Hub-Signature-256` |
 
 ### App SPN access
 The app's auto-provisioned SPN gets READ on the secret scope **and** Postgres schema grants
@@ -246,7 +252,7 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 | 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
 | 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
-| 5 — GitHub integration | ⬜ Not started | Branch/PR tools, sparse checkout, branch protection — schema (`pull_requests`, `agent_checkout_spec`) already exists from Track A |
+| 5 — GitHub integration | 🟡 **In progress** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007 + deploy.sh GitHub App secret provisioning — shipped in PR #32 |
 | 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
 | 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 
@@ -437,4 +443,4 @@ production hardening.
 | # | Area | Gap | Action |
 |---|------|-----|--------|
 | O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
-| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in target-specific scope (`dev_<user_handle>_hi_genie_credentials` for dev, `hi_genie_staging_credentials` for staging) are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret dev_<your_user_handle>_hi_genie_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret` (or use the staging scope for staging). |
+| O2 | GitHub credentials | **Resolved (PR #32).** Real OAuth + GitHub App credentials provisioned; `/auth/github/*` (OAuth flow) and `/webhook/github` (webhook consumer) implemented. `deploy.sh` now checks/provisions all six GitHub secrets: `github_client_id`, `github_client_secret`, `github_app_id`, `github_app_private_key`, `github_installation_id`, `github_webhook_secret`. | — |

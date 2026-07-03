@@ -5,6 +5,7 @@ import { migration003 } from './003_message_read_tracking.js';
 import { migration004 } from './004_rls_policies.js';
 import { migration005 } from './005_app_schema.js';
 import { migration006 } from './006_omnigent_routing.js';
+import { migration007 } from './007_github_tokens.js';
 
 export interface Migration {
   name: string;
@@ -18,6 +19,7 @@ const migrations: Migration[] = [
   migration004,
   migration005,
   migration006,
+  migration007,
 ];
 
 // Explicitly qualified to public — once search_path is app, public (see

@@ -5,6 +5,8 @@ import { mcpRouter } from './routes/mcp.js';
 import { dcrRouter } from './routes/dcr.js';
 import { personaTokenRouter } from './routes/persona-token.js';
 import { wellKnownRouter } from './routes/well-known.js';
+import { githubOAuthRouter } from './routes/github-oauth.js';
+import { githubWebhookRouter } from './routes/github-webhook.js';
 import type { Db } from './db/index.js';
 import { installLakebaseSearchPath } from './db/searchPath.js';
 import { runMigrations } from './migrations/migrate.js';
@@ -42,6 +44,10 @@ const AppKit = createApp({
     }
 
     appkit.server.extend((app) => {
+      // Webhook route must precede express.json() — it captures the raw body
+      // itself for HMAC signature verification.
+      app.use('/webhook/github', githubWebhookRouter(db));
+
       app.use(express.json());
 
       // MCP streamable-HTTP endpoint (RFC — MCP 2025-03 transport spec)
@@ -57,6 +63,10 @@ const AppKit = createApp({
 
       // Persona token issuer — agents call this to get a signed persona JWT
       app.use('/token', personaTokenRouter(db));
+
+      // GitHub OAuth flow — write-lane per-user OBO auth for external agents
+      app.use('/auth/github', githubOAuthRouter(db));
+
 
       // Identity debug — useful during development to confirm OBO headers
       app.get('/api/me', (req, res) => {
