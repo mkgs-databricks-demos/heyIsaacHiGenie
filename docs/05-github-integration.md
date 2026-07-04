@@ -173,15 +173,35 @@ DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
 
 The `--run-setup` flag runs two jobs sequentially:
 1. `platform_bootstrap` — stores `workspace_url`, validates admin secrets
-2. `provision_relay_spn` — creates `hi-genie-relay-dev` SP, stores credentials, grants CAN_USE
+2. `provision_relay_spn` — creates `hi-genie-relay-dev` SP, stores credentials, grants CAN_USE,
+   and **automatically sets `HI_GENIE_SP_CLIENT_ID` and `HI_GENIE_SP_CLIENT_SECRET` as GitHub
+   Actions org secrets** — no manual copy-paste needed.
 
-The job output prints the values to copy into GitHub Actions org-level secrets:
+### GitHub Actions org secrets (auto-provisioned)
 
+`provision_relay_spn` uses the GitHub App credentials already in the secret scope to mint an
+installation access token, then encrypts and PUTs the two secrets via the GitHub REST API:
+
+| GitHub Actions secret | Value | Visibility |
+|---|---|---|
+| `HI_GENIE_SP_CLIENT_ID` | relay SP `application_id` (OAuth client UUID) | all repos |
+| `HI_GENIE_SP_CLIENT_SECRET` | relay SP OAuth client secret | all repos |
+
+The secret plaintext **never appears in notebook output or job run history** — it is encrypted
+client-side with the org's Curve25519 public key (libsodium `SealedBox`) before being sent to
+GitHub.
+
+**Prerequisite:** The GitHub App must have `Organization permissions → Secrets: Read and write`
+approved by an org owner. Without it the PUT returns HTTP 403. Grant the permission at
+`https://github.com/settings/apps/<app-name>/permissions`, then re-run:
+
+```bash
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
 ```
-Org-level GitHub Actions secrets to set (one-time):
-  HI_GENIE_SP_CLIENT_ID     = <application_id>
-  HI_GENIE_SP_CLIENT_SECRET = <value from secret scope: relay_sp_client_secret>
-```
+
+Fallback if the GitHub App cannot be granted org-secret write permission: use a fine-grained
+PAT with `org:secrets:write` scope stored as `HI_GENIE_GITHUB_PAT` in the secret scope, and
+swap the App JWT auth for a `Authorization: Bearer <pat>` header in the notebook.
 
 ### Idempotency and rotation
 
