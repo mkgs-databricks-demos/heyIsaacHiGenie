@@ -42,7 +42,7 @@ export function githubAppRouter(db: Db) {
           typeof process.env.RELAY_SP_CLIENT_SECRET === 'string' &&
           process.env.RELAY_SP_CLIENT_SECRET.length > 0,
         app_url_configured:
-          typeof process.env.APP_PUBLIC_URL === 'string' && process.env.APP_PUBLIC_URL.length > 0,
+          typeof process.env.HI_GENIE_APP_URL === 'string' && process.env.HI_GENIE_APP_URL.length > 0,
       },
       can_mint_jwt: canMintAppJwt(),
     });
