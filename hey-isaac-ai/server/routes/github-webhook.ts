@@ -32,19 +32,8 @@ export function githubWebhookRouter(db: Db) {
   router.use(express.raw({ type: '*/*' }));
 
   router.post('/', async (req, res) => {
-      const webhookSecret = process.env.HI_GENIE_GITHUB_WEBHOOK_SECRET;
-      if (!webhookSecret) {
-        res.status(503).json({ error: 'webhook not configured' });
-        return;
-      }
-
       const sig = req.headers['x-hub-signature-256'] as string | undefined;
       const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-
-      if (!verifySignature(webhookSecret, rawBody, sig)) {
-        res.status(400).json({ error: 'invalid_signature' });
-        return;
-      }
 
       const event = req.headers['x-github-event'] as string | undefined;
 
@@ -53,6 +42,41 @@ export function githubWebhookRouter(db: Db) {
         body = JSON.parse(rawBody.toString('utf8'));
       } catch {
         res.status(400).json({ error: 'invalid_json' });
+        return;
+      }
+
+      // Resolve the repo URL from the payload to look up the per-repo secret
+      const repoHtmlUrl = (body as any)?.repository?.html_url as string | undefined;
+
+      let webhookSecret: string | undefined;
+      if (repoHtmlUrl) {
+        const configResult = await db.query<{ project_id: string; webhook_secret: string | null }>(
+          `SELECT rc.project_id,
+                  elem->>'webhook_secret' AS webhook_secret
+           FROM   app.repo_config rc,
+                  jsonb_array_elements(rc.repos) AS elem
+           WHERE  elem->>'url' = $1
+           LIMIT  1`,
+          [repoHtmlUrl],
+        );
+        const row = configResult.rows[0];
+        if (row?.webhook_secret) {
+          webhookSecret = row.webhook_secret;
+        }
+      }
+
+      // Fall back to global env var for backward compatibility during migration
+      if (!webhookSecret) {
+        webhookSecret = process.env.HI_GENIE_GITHUB_WEBHOOK_SECRET;
+      }
+
+      if (!webhookSecret) {
+        res.status(400).json({ error: 'webhook_not_configured' });
+        return;
+      }
+
+      if (!verifySignature(webhookSecret, rawBody, sig)) {
+        res.status(400).json({ error: 'invalid_signature' });
         return;
       }
 
@@ -69,11 +93,13 @@ export function githubWebhookRouter(db: Db) {
 
           const status = statusMap[action];
           if (status) {
-            // Match repo against repo_config.repos JSONB to find project_id
             const configResult = await db.query<{ project_id: string }>(
-              `SELECT project_id FROM app.repo_config
-               WHERE repos @> $1::jsonb`,
-              [JSON.stringify([{ url: repo.html_url }])],
+              `SELECT rc.project_id
+               FROM   app.repo_config rc,
+                      jsonb_array_elements(rc.repos) AS elem
+               WHERE  elem->>'url' = $1
+               LIMIT  1`,
+              [repo.html_url],
             );
             const project_id = configResult.rows[0]?.project_id ?? null;
 
