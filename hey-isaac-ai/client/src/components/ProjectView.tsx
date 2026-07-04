@@ -11,6 +11,8 @@ import {
   AlertDescription,
 } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
+import GitHubAppStatusCard from './GitHubAppStatusCard';
+import type { GitHubStatus } from '../lib/github';
 import type { AgentConfig, Thread } from '../lib/types';
 import RepoSection from './RepoSection';
 
@@ -22,10 +24,18 @@ const PROJECT_DESCRIPTION =
 interface ProjectViewProps {
   agents: AgentConfig[];
   personaToken: string;
+  githubStatus: GitHubStatus | null;
+  onRefreshGitHubStatus: () => void;
   onStartThread: (thread: Thread, agentId: string) => void;
 }
 
-export default function ProjectView({ agents, personaToken, onStartThread }: ProjectViewProps) {
+export default function ProjectView({
+  agents,
+  personaToken,
+  githubStatus,
+  onRefreshGitHubStatus,
+  onStartThread,
+}: ProjectViewProps) {
   const [startingFor, setStartingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,6 +203,36 @@ export default function ProjectView({ agents, personaToken, onStartThread }: Pro
           </div>
         ))}
       </div>
+
+      {/* GitHub App settings — owner-only; null when caller is not an owner/admin. */}
+      {githubStatus && (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              margin: '32px 0 16px',
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: '0.8px',
+                textTransform: 'uppercase',
+                color: 'var(--db-text-muted)',
+              }}
+            >
+              GitHub App Settings
+            </h3>
+            <div style={{ flex: 1, height: 1, background: 'var(--db-border)' }} />
+          </div>
+
+          <GitHubAppStatusCard status={githubStatus} onRefresh={onRefreshGitHubStatus} />
+        </>
+      )}
 
       <RepoSection personaToken={personaToken} />
     </div>
