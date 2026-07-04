@@ -60,6 +60,7 @@ fi
 INFRA_BUNDLE="hey-isaac-infra"
 APP_BUNDLE="hey-isaac-ai"
 PLATFORM_BOOTSTRAP_JOB="platform_bootstrap"
+PROVISION_RELAY_SPN_JOB="provision_relay_spn"
 CONFIGURE_APP_SPN_JOB="configure_app_spn"
 POST_DEPLOY_VALIDATION_JOB="post_deploy_validation"
 REQUIRED_CLI_VERSION="1.5.0"
@@ -411,6 +412,17 @@ run_platform_bootstrap() {
   (cd_bundle "${bundle_dir}" && databricks bundle run "${PLATFORM_BOOTSTRAP_JOB}" --target "${TARGET}") || \
     fail "Platform bootstrap failed. Check the Databricks Jobs UI."
   ok "Platform bootstrap complete"
+}
+
+# --------------------------------------------------------------------------- #
+# run_provision_relay_spn
+# --------------------------------------------------------------------------- #
+run_provision_relay_spn() {
+  local bundle_dir="${SCRIPT_DIR}/${INFRA_BUNDLE}"
+  log "Running relay SP provisioning (target: ${TARGET})"
+  (cd_bundle "${bundle_dir}" && databricks bundle run "${PROVISION_RELAY_SPN_JOB}" --target "${TARGET}") || \
+    fail "Relay SP provisioning failed. Check the Databricks Jobs UI."
+  ok "Relay SP provisioning complete"
 }
 
 # --------------------------------------------------------------------------- #
@@ -1107,6 +1119,7 @@ fi
 
 if [[ "${RUN_SETUP}" == true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then
   run_platform_bootstrap
+  run_provision_relay_spn
 fi
 
 if [[ "${DEPLOY_APP}" == true ]] && [[ "${SKIP_CHECKS}" != true ]] && [[ "${VALIDATE_ONLY}" != true ]] && [[ "${DESTROY}" != true ]]; then

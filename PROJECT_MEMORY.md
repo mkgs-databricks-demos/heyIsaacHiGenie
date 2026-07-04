@@ -41,9 +41,11 @@ hey-isaac-hi-genie/
 │       ├── hi_genie.schema.yml
 │       ├── hi_genie.secret_scope.yml
 │       ├── hi_genie.lakebase.yml
-│       └── platform_bootstrap.job.yml
+│       ├── platform_bootstrap.job.yml
+│       └── provision_relay_spn.job.yml
 │   └── src/notebooks/
-│       └── platform_bootstrap.py
+│       ├── platform_bootstrap.py
+│       └── provision_relay_spn.py
 └── hey-isaac-ai/                   # DABs app bundle (AppKit)
     ├── databricks.yml
     ├── app.yaml
@@ -205,6 +207,12 @@ DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev
 |---|---|
 | `workspace_url` | `https://fevm-hls-fde.cloud.databricks.com` |
 
+### Auto-provisioned by `provision_relay_spn` job
+| Key | Value |
+|---|---|
+| `relay_sp_client_id` | OAuth client_id for the relay SP (`hi-genie-relay-<target>`) |
+| `relay_sp_client_secret` | OAuth client_secret for the relay SP (rotation-safe; new secret generated on each run) |
+
 ### Admin-provisioned (manual)
 | Key | How to provision |
 |---|---|
@@ -265,7 +273,7 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 | 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). GitHub OAuth creds ✅ done (O2, PR #32). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3). |
 | 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
-| 5 — GitHub integration | ✅ **Done** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007+008 + deploy.sh GitHub App secret provisioning — shipped in PR #32. Verified end-to-end against genie_code_demo. Phase 5b (governance MCP tools: get_repo_config, link_branch, link_pull_request) is next. |
+| 5 — GitHub integration | ✅ **Done** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007+008 + deploy.sh GitHub App secret provisioning — shipped in PR #32. Verified end-to-end against genie_code_demo. Relay SP provisioning automated via `provision_relay_spn` job (branch `polly/provision-relay-spn`): `./deploy.sh --target dev --run-setup` creates the relay SP, stores client_id/client_secret in secret scope, and grants CAN_USE on the app. Phase 5b (governance MCP tools: get_repo_config, link_branch, link_pull_request) is next. |
 | 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) can now be implemented — ~~Apps proxy rejects M2M tokens~~ **CORRECTION (2026-07-03): SP M2M OAuth tokens ARE accepted by the Databricks Apps gateway**. Use SP `client_id`/`client_secret` with `WorkspaceClient.config.authenticate()`. |
 | 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 

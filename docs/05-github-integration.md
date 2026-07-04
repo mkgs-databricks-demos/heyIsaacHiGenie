@@ -158,6 +158,55 @@ The write lane and governance tooling are the **next milestone**:
 - GitHub branch protection setup (the hard enforcement guard)
 - Roster overlap warnings (cone intersections)
 
+## Relay SP provisioning
+
+The GitHub Actions relay authenticates to `/webhook/github` with a Databricks M2M OAuth token
+from a dedicated service principal (`hi-genie-relay-<target>`). The `provision_relay_spn` job
+automates SP creation and secret storage.
+
+### One-time setup per environment
+
+```bash
+# Deploy infra bundle, run platform bootstrap, then provision the relay SP:
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
+```
+
+The `--run-setup` flag runs two jobs sequentially:
+1. `platform_bootstrap` — stores `workspace_url`, validates admin secrets
+2. `provision_relay_spn` — creates `hi-genie-relay-dev` SP, stores credentials, grants CAN_USE
+
+The job output prints the values to copy into GitHub Actions org-level secrets:
+
+```
+Org-level GitHub Actions secrets to set (one-time):
+  HI_GENIE_SP_CLIENT_ID     = <application_id>
+  HI_GENIE_SP_CLIENT_SECRET = <value from secret scope: relay_sp_client_secret>
+```
+
+### Idempotency and rotation
+
+- **SP creation** is idempotent — re-running finds the existing SP by `displayName`.
+- **Secret generation** is rotation-safe — each run generates a new OAuth secret and updates
+  the scope. Existing tokens remain valid until their expiry; only the stored secret is updated.
+- Re-run any time you need to rotate the relay SP credentials.
+
+### What is stored in the secret scope
+
+| Key | Value |
+|---|---|
+| `relay_sp_client_id` | OAuth client_id (= `application_id`) for the relay SP |
+| `relay_sp_client_secret` | OAuth client_secret (new value on each run) |
+
+### App permissions
+
+The job calls `w.apps.set_permissions()` to grant `CAN_USE` on the app for the relay SP.
+If the app is not yet deployed when the job runs, this step is non-fatal and prints a warning.
+Re-run after deploying the app:
+
+```bash
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
+```
+
 ## Open items
 
 - **Platform OAuth proxy — webhook blocker (highest priority):** The Databricks Apps OAuth proxy (apps-gateway, Rust) returns HTTP 302 to all unauthenticated requests before they reach Express. GitHub webhooks carry no Databricks session, so `POST /webhook/github` is intercepted. Mitigation options:
