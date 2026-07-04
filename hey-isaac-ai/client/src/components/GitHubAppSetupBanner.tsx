@@ -20,7 +20,7 @@ interface GitHubAppSetupBannerProps {
 export default function GitHubAppSetupBanner({ status, onConfigured }: GitHubAppSetupBannerProps) {
   const [dismissed, setDismissed] = useState(() => {
     try {
-      return sessionStorage.getItem(DISMISS_KEY) === '1';
+      return localStorage.getItem(DISMISS_KEY) === '1';
     } catch {
       return false;
     }
@@ -38,7 +38,7 @@ export default function GitHubAppSetupBanner({ status, onConfigured }: GitHubApp
 
   function handleDismiss() {
     try {
-      sessionStorage.setItem(DISMISS_KEY, '1');
+      localStorage.setItem(DISMISS_KEY, '1');
     } catch {
       /* ignore storage failures */
     }
