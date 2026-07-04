@@ -10,7 +10,7 @@
 # COMMAND ----------
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service import iam
+from databricks.sdk.service import iam, apps
 
 dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
 dbutils.widgets.text("app_name", "hey-isaac-hi-genie")  # type: ignore[name-defined]
@@ -52,9 +52,9 @@ try:
     w.apps.set_permissions(
         app_name=app_name,
         access_control_list=[
-            iam.AppAccessControlRequest(
-                service_principal_name=str(sp.id),
-                permission_level=iam.AppPermissionLevel.CAN_USE,
+            apps.AppAccessControlRequest(
+                service_principal_name=str(sp.application_id),
+                permission_level=apps.AppPermissionLevel.CAN_USE,
             )
         ],
     )
