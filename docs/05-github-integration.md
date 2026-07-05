@@ -158,6 +158,75 @@ The write lane and governance tooling are the **next milestone**:
 - GitHub branch protection setup (the hard enforcement guard)
 - Roster overlap warnings (cone intersections)
 
+## Relay SP provisioning
+
+The GitHub Actions relay authenticates to `/webhook/github` with a Databricks M2M OAuth token
+from a dedicated service principal (`hi-genie-relay-<target>`). The `provision_relay_spn` job
+automates SP creation and secret storage.
+
+### One-time setup per environment
+
+```bash
+# Deploy infra bundle, run platform bootstrap, then provision the relay SP:
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
+```
+
+The `--run-setup` flag runs two jobs sequentially:
+1. `platform_bootstrap` — stores `workspace_url`, validates admin secrets
+2. `provision_relay_spn` — creates `hi-genie-relay-dev` SP, stores credentials, grants CAN_USE,
+   and **automatically sets `HI_GENIE_SP_CLIENT_ID` and `HI_GENIE_SP_CLIENT_SECRET` as GitHub
+   Actions org secrets** — no manual copy-paste needed.
+
+### GitHub Actions org secrets (auto-provisioned)
+
+`provision_relay_spn` uses the GitHub App credentials already in the secret scope to mint an
+installation access token, then encrypts and PUTs the two secrets via the GitHub REST API:
+
+| GitHub Actions secret | Value | Visibility |
+|---|---|---|
+| `HI_GENIE_SP_CLIENT_ID` | relay SP `application_id` (OAuth client UUID) | all repos |
+| `HI_GENIE_SP_CLIENT_SECRET` | relay SP OAuth client secret | all repos |
+
+The secret plaintext **never appears in notebook output or job run history** — it is encrypted
+client-side with the org's Curve25519 public key (libsodium `SealedBox`) before being sent to
+GitHub.
+
+**Prerequisite:** The GitHub App must have `Organization permissions → Secrets: Read and write`
+approved by an org owner. Without it the PUT returns HTTP 403. Grant the permission at
+`https://github.com/settings/apps/<app-name>/permissions`, then re-run:
+
+```bash
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
+```
+
+Fallback if the GitHub App cannot be granted org-secret write permission: use a fine-grained
+PAT with `org:secrets:write` scope stored as `HI_GENIE_GITHUB_PAT` in the secret scope, and
+swap the App JWT auth for a `Authorization: Bearer <pat>` header in the notebook.
+
+### Idempotency and rotation
+
+- **SP creation** is idempotent — re-running finds the existing SP by `displayName`.
+- **Secret generation** is rotation-safe — each run generates a new OAuth secret and updates
+  the scope. Existing tokens remain valid until their expiry; only the stored secret is updated.
+- Re-run any time you need to rotate the relay SP credentials.
+
+### What is stored in the secret scope
+
+| Key | Value |
+|---|---|
+| `relay_sp_client_id` | OAuth client_id (= `application_id`) for the relay SP |
+| `relay_sp_client_secret` | OAuth client_secret (new value on each run) |
+
+### App permissions
+
+The job calls `w.apps.set_permissions()` to grant `CAN_USE` on the app for the relay SP.
+If the app is not yet deployed when the job runs, this step is non-fatal and prints a warning.
+Re-run after deploying the app:
+
+```bash
+DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev --run-setup
+```
+
 ## Open items
 
 - **Platform OAuth proxy — webhook blocker (highest priority):** The Databricks Apps OAuth proxy (apps-gateway, Rust) returns HTTP 302 to all unauthenticated requests before they reach Express. GitHub webhooks carry no Databricks session, so `POST /webhook/github` is intercepted. Mitigation options:

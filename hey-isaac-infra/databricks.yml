@@ -72,6 +72,10 @@ variables:
   target:
     description: Deployment target name (dev, staging, prod). Passed to platform bootstrap for seed-data gating.
     default: dev
+  app_name:
+    description: >-
+      Name of the Databricks App (used to set permissions on the app for the relay SP).
+    default: hey-isaac-hi-genie
 
 targets:
 
