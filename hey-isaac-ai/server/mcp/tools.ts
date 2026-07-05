@@ -281,6 +281,35 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
     },
   );
 
+  // Tool 13: register_repo
+  server.tool(
+    'register_repo',
+    'Register a GitHub repository with Hi-Genie. Creates the relay workflow file, sets the Actions secret, and updates repo_config. The calling agent must be a member of the target project.',
+    {
+      project_id: z.string().describe('Project UUID to associate the repo with'),
+      repo_full_name: z.string().describe('GitHub repo in owner/name format, e.g. mkgs-databricks-demos/genie_code_demo'),
+    },
+    async ({ project_id, repo_full_name }) => {
+      const memberCheck = await db.query<ProjectMember>(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = lower($2)',
+        [project_id, human],
+      );
+      if (!memberCheck.rows.length) {
+        return err('not_a_project_member');
+      }
+      const registerResp = await fetch(
+        `http://localhost:${process.env.PORT ?? 8000}/api/repos/register`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id, repo: repo_full_name }),
+        },
+      );
+      const result = await registerResp.json();
+      return ok(result);
+    },
+  );
+
   // Tool 12: link_pull_request
   server.tool(
     'link_pull_request',
