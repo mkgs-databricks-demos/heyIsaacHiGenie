@@ -12,6 +12,7 @@ import {
 } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
 import type { AgentConfig, Thread } from '../lib/types';
+import RepoSection from './RepoSection';
 
 const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
 const PROJECT_NAME = 'Hi Genie — Demo Project';
@@ -192,6 +193,8 @@ export default function ProjectView({ agents, personaToken, onStartThread }: Pro
           </div>
         ))}
       </div>
+
+      <RepoSection personaToken={personaToken} />
     </div>
   );
 }

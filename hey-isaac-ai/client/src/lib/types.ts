@@ -29,6 +29,24 @@ export interface Message {
   created_at: string;
 }
 
+export interface RepoStatus {
+  url: string;
+  last_delivery: string | null;
+}
+
+export interface RegisterRepoResult {
+  ok: boolean;
+  steps: Array<{ name: string; status: 'ok' | 'error'; detail?: string }>;
+  relay?: { status: string };
+  error?: string;
+}
+
+export interface GithubRepo {
+  full_name: string;
+  html_url: string;
+  description: string | null;
+}
+
 export type View =
   | { kind: 'loading' }
   | { kind: 'project' }
