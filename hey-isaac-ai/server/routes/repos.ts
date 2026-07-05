@@ -259,9 +259,9 @@ export function reposRouter(db: Db): Router {
     const repoHtmlUrl = `https://github.com/${owner}/${repoName}`;
 
     // Relay SP env vars must be present before we touch GitHub
-    const relaySPClientId = process.env.RELAY_SP_CLIENT_ID;
-    const relaySPClientSecret = process.env.RELAY_SP_CLIENT_SECRET;
-    const appPublicUrl = process.env.APP_PUBLIC_URL;
+    const relaySPClientId = process.env.RELAY_SP_CLIENT_ID?.trim();
+    const relaySPClientSecret = process.env.RELAY_SP_CLIENT_SECRET?.trim();
+    const appPublicUrl = process.env.APP_PUBLIC_URL?.trim();
     if (!relaySPClientId || !relaySPClientSecret || !appPublicUrl) {
       res.status(503).json({
         error: 'relay_sp_not_configured',
