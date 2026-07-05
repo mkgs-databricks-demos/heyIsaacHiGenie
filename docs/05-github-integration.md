@@ -118,9 +118,54 @@ longer creates the git artifacts, the agents **report them back** (via the linka
   was never called). Therefore the App should **validate** agent-created branch names against the
   template, not just record them.
 
+## Implementation status (as of 2026-07-03)
+
+### Shipped — observe/webhook lane (PR #32)
+
+The **read/observe lane** is live:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /auth/github/login?state=<state>` | Initiates OAuth flow — redirects to GitHub |
+| `GET /auth/github/callback?code=<code>&state=<state>` | Exchanges code, fetches GitHub user, upserts `app.github_tokens` |
+| `POST /webhook/github` | HMAC-verified (timingSafeEqual) event consumer; PR events upsert `app.pull_requests` |
+
+**Webhook details:**
+- GitHub App configured with webhook URL `https://hey-isaac-hi-genie-dev-7474657291520070.aws.databricksapps.com/webhook/github`
+- Events handled: `pull_request` (opened/reopened/closed/merged) → upsert `app.pull_requests`
+- Events stubbed: `push` (logged, not stored yet)
+- Signature verification: `X-Hub-Signature-256`, `timingSafeEqual` — the HMAC is the security layer
+- `repo_config.repos` JSONB array is the join key — webhook payload `repository.html_url` must match an entry for a PR row to be recorded
+- **IP ACL:** GitHub webhook IP ranges (`140.82.112.0/20`, `185.199.108.0/22`, `192.30.252.0/22`, `143.55.64.0/20`) must be in the workspace allowlist as `hey-isaac-hi-genie-github-webhooks`. Without this, all webhook deliveries return HTTP 403 with "Source IP blocked".
+- **Platform OAuth proxy blocker (open):** The Databricks Apps gateway (`apps-gateway`, Rust) intercepts all incoming requests and redirects unauthenticated ones to OAuth login (HTTP 302). GitHub webhooks carry no Databricks session cookie, so they receive a 302 → OAuth login redirect before reaching Express. `skip_auth_routes` exists in the platform's Nimbus/oauth2proxy config but is **not customer-configurable** via `app.yaml`. This means `POST /webhook/github` cannot be reached by GitHub without a platform-side change. See "Open items" for mitigation options.
+
+**Schema additions (migration 007):**
+- `app.github_tokens (github_user_id, project_id, access_token, token_type, scope, created_at, updated_at)`
+- `app.pull_requests` extended: `branch_ref`, `base_branch`, `author_github_login`, `UNIQUE(project_id, pr_number)`
+
+**CDC / REPLICA IDENTITY (migration 008):**
+- All 14 `app.*` tables have `REPLICA IDENTITY FULL` — required for wal2delta CDC to capture full row images
+- CONVENTION: every `CREATE TABLE` in a migration must be immediately followed by `ALTER TABLE <name> REPLICA IDENTITY FULL`
+
+### Not yet shipped — write/governance lane (Phase 5b)
+
+The write lane and governance tooling are the **next milestone**:
+
+- `get_repo_config` MCP tool — serve repo, sparse-cone, branch-naming, and merge policy to agents
+- `get_my_checkout_spec` MCP tool — per-agent cone derived from responsibilities
+- `link_branch` MCP tool — agent reports its created branch back; App validates name template + records `branch_ref`
+- `link_pull_request` MCP tool — agent reports its opened PR; App links it to the thread/task
+- GitHub branch protection setup (the hard enforcement guard)
+- Roster overlap warnings (cone intersections)
+
 ## Open items
 
+- **Platform OAuth proxy — webhook blocker (highest priority):** The Databricks Apps OAuth proxy (apps-gateway, Rust) returns HTTP 302 to all unauthenticated requests before they reach Express. GitHub webhooks carry no Databricks session, so `POST /webhook/github` is intercepted. Mitigation options:
+  1. **Request platform feature** (`skip_auth_routes` for customer apps) — file an internal ticket so `app.yaml` can list unauthenticated route regexes.
+  2. **GitHub Actions relay** — a GitHub Actions workflow fires on PR events and makes an authenticated call to `/webhook/github` using a Databricks PAT (stored as a GitHub Actions secret). The app re-validates with its own shared secret.
+  3. **Smee / webhook proxy** — a tiny relay service that authenticates to Databricks and forwards GitHub webhook payloads.
+  4. **Polling fallback** — use a scheduled job (e.g., Lakeflow Job every minute) to poll GitHub's REST API for PR state changes, skipping webhooks entirely.
 - **Branch GC:** auto-prune branches whose PRs merged (policy + a small cleanup job).
-- **Webhook specifics** for the observe path: endpoint, secret verification, which events
-  (PR opened/merged/closed, CI status), and GitHub App permission scoping (read-only).
-- PR template contents and required CI checks.
+- **PR template contents** and required CI checks.
+- **Webhook expansion:** push events → record to work graph; CI status events.
+- **`github_tokens` registration in wal2delta** — currently manually inserted as PENDING; should be auto-discovered or added in the deploy pipeline.

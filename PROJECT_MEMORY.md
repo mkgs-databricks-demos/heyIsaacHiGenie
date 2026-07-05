@@ -61,7 +61,9 @@ hey-isaac-hi-genie/
     │   └── routes/
     │       ├── mcp.ts              # Streamable-HTTP MCP server (whoami + ping tools)
     │       ├── dcr.ts              # RFC 7591 Dynamic Client Registration
-    │       └── persona-token.ts    # HMAC JWT persona token issuer
+    │       ├── persona-token.ts    # HMAC JWT persona token issuer
+    │       ├── github-oauth.ts     # GET /auth/github/login + /callback (write lane)
+    │       └── github-webhook.ts   # POST /webhook/github (read/observe lane)
     ├── client/
     │   ├── index.html
     │   ├── vite.config.ts
@@ -75,9 +77,9 @@ hey-isaac-hi-genie/
 
 ---
 
-## Current Status: RLS + Per-Human Postgres Roles Live — App Schema Migration Merged
+## Current Status: Phase 5 GitHub Integration Live — CDC Pipeline Active
 
-### What is done (as of 2026-07-02)
+### What is done (as of 2026-07-03)
 - All architecture decisions finalized (see `docs/`)
 - Both DABs bundles (`hey-isaac-infra`, `hey-isaac-ai`) deployed to `dev` target on `fevm-hls-fde`
 - Lakebase project **`dev-hi-genie`**, branch **`dev-matthew-giglia`** live
@@ -103,6 +105,19 @@ hey-isaac-hi-genie/
 - **App-layer domain tables moved from `public` → `app` Postgres schema** (PR #27, merged
   `21c710a`) — matches the sibling `lakeLoom` project's convention. `_migrations` stays in
   `public`. See "Postgres Schema: `app` vs `public`" below.
+- **Phase 5 GitHub integration shipped** (PR #32, branch `add-github-oauth-secret-provisioning`):
+  - `GET /auth/github/login` + `GET /auth/github/callback` — OAuth flow, stores token in `app.github_tokens`
+  - `POST /webhook/github` — HMAC-verified (timingSafeEqual) webhook consumer; PR events upsert `app.pull_requests`
+  - Migration 007: `app.github_tokens` table; adds `branch_ref`, `base_branch`, `author_github_login` to `pull_requests`; UNIQUE(project_id, pr_number)
+  - Migration 008: sets `REPLICA IDENTITY FULL` on all 14 `app.*` tables; drops obsolete thread_id/task_id NOT NULL check constraint
+  - All future migrations must follow the CONVENTION: `ALTER TABLE <name> REPLICA IDENTITY FULL` immediately after every `CREATE TABLE`
+  - `app.yaml` + `hi_genie.app.yml` wired for all 6 GitHub secrets from secret scope
+  - `deploy.sh` checks/provisions all 6 GitHub secrets; Databricks Apps `users` group granted `CAN_USE` for webhook accessibility
+  - `package-lock.json` resolved URLs patched to public npm registry (Databricks proxy had cache miss on `xtend@4.0.2`)
+  - Verified end-to-end against `mkgs-databricks-demos/genie_code_demo` — webhook delivered, HMAC verified, PR row inserted
+- **wal2delta CDC pipeline active** — all 14 `app.*` tables at PENDING status; 4 UC OTel Delta
+  tables exist (`hls_fde_dev.dev_matthew_giglia_hi_genie.hi_genie_otel_{logs,traces,metrics,annotations}`)
+  — data will flow on next wal2delta cycle
 
 ### Active dev environment
 | Resource | Value |
@@ -194,8 +209,12 @@ DATABRICKS_CONFIG_PROFILE=fevm-hls-fde ./deploy.sh --target dev
 | Key | How to provision |
 |---|---|
 | `jwt_signing_key` | `openssl rand -base64 64` → `databricks secrets put-secret dev_<your_user_handle>_hi_genie_credentials jwt_signing_key --string-value <value>` |
-| `github_client_id` | GitHub OAuth App client ID — Phase 5, not needed for spike |
-| `github_client_secret` | GitHub OAuth App client secret — Phase 5, not needed for spike |
+| `github_client_id` | GitHub OAuth App client ID (write lane) |
+| `github_client_secret` | GitHub OAuth App client secret (write lane) |
+| `github_app_id` | GitHub App ID (read/observe lane) |
+| `github_app_private_key` | GitHub App RSA private key PEM (read/observe lane) |
+| `github_installation_id` | GitHub App installation ID for the target org/repo |
+| `github_webhook_secret` | Webhook HMAC secret used to verify `X-Hub-Signature-256` |
 
 ### App SPN access
 The app's auto-provisioned SPN gets READ on the secret scope **and** Postgres schema grants
@@ -241,13 +260,13 @@ calls `psycopg2.connect()` directly — no credential logic inside the notebook.
 
 | Phase | Status | Description |
 |---|---|---|
-| 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — Databricks Apps proxy blocks M2M tokens, U2M behaviour already confirmed equivalent |
+| 0 — Auth spike | ✅ **Done** | OBO + DCR + persona token round-trip proven live (S1–S3 smoke tests pass); S4 (external OAuth client) architecturally deferred — ~~Apps proxy blocks M2M tokens~~ **CORRECTION (2026-07-03): Databricks Apps DO support SP M2M OAuth tokens via client_credentials grant** (docs: "Connect to an API Databricks app using token authentication", updated 2026-04-06). SP must have CAN_USE on the app; use `WorkspaceClient(client_id, client_secret).config.authenticate()` to get the Bearer token. **LIVE VERIFIED (2026-07-03):** SP `500b37b6-8104-4eb6-8f0a-1e9d55cc780d` (lakeloom_credentials non-Xcode creds) successfully called `/webhook/github` with a `client_credentials` M2M token — 200 with valid HMAC, 400 with bad HMAC. No `/api/` prefix required. |
 | 1 — Foundation | ✅ **Done** | 13-table Lakebase DDL (PR #16), idempotent TS migration runner (PR #18/#19), DB-backed DCR/JTI/persona authority + 12 MCP tools (PR #17), React frontend w/ Databricks retro branding (PR #21) |
-| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3), real GitHub OAuth creds (O2, currently stubbed) |
+| 2 — Auth productionize | 🟡 **Partial** | DCR persistence ✅ done (DB-backed, PR #17). RLS defense-in-depth ✅ done (PR #24, lazy per-human Postgres roles). Rate-limit key hardened to `X-Real-Ip` ✅ done (PR #22). GitHub OAuth creds ✅ done (O2, PR #32). Open: token rotation, timing-safe DCR secret compare (S2), unauthenticated `GET /dcr/:id` (S3). |
 | 3 — MCP server | ✅ **Done** | All 12 tools shipped and smoke-tested (9/10 pass at the time, `docs/smoke-test-results-phase1.md`). `mark_messages_read` / `unread_only` (S6) closed in PR #23 — the one remaining gap from that test run is now fixed |
 | 4 — Frontend | ✅ **Done** | Retro Databricks-branded React SPA — project/agent roster, chat UI, Tailwind + AppKit UI theme (PR #21) |
-| 5 — GitHub integration | ⬜ Not started | Branch/PR tools, sparse checkout, branch protection — schema (`pull_requests`, `agent_checkout_spec`) already exists from Track A |
-| 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) deferred — Apps proxy rejects M2M tokens; U2M behaviour already proven via Tests 1–3 |
+| 5 — GitHub integration | ✅ **Done** | OAuth flow (/auth/github/*) + webhook consumer (/webhook/github) + migration 007+008 + deploy.sh GitHub App secret provisioning — shipped in PR #32. Verified end-to-end against genie_code_demo. Phase 5b (governance MCP tools: get_repo_config, link_branch, link_pull_request) is next. |
+| 6 — Integration test | 🟡 **Mostly done** | Tests 1–3 pass live against dev. Test 4 (external OAuth client, no DCR) can now be implemented — ~~Apps proxy rejects M2M tokens~~ **CORRECTION (2026-07-03): SP M2M OAuth tokens ARE accepted by the Databricks Apps gateway**. Use SP `client_id`/`client_secret` with `WorkspaceClient.config.authenticate()`. |
 | 7 — Agile board | ⬜ Not started | tasks/sprints UI + MCP tools — follows GitHub integration since tasks likely reference PRs/branches |
 
 ---
@@ -421,6 +440,7 @@ production hardening.
 | S2 | DCR shared-secret | `x-dcr-shared-secret` comparison uses `===` (timing side-channel). | Replace with `crypto.timingSafeEqual` in `server/routes/dcr.ts`. |
 | S3 | DCR GET endpoint | `GET /dcr/:client_id` is unauthenticated — any caller can enumerate registered clients. | Add shared-secret guard (same pattern as POST), or document as intentional internal-only route. |
 | ~~S4~~ | ~~DCR persistence~~ | **Closed (PR #17).** Client registry moved to a Lakebase `dcr_clients` table (SP pool, no RLS). This row was left stale in an earlier revision of this doc despite the Roadmap table already reflecting the fix — corrected here. | — |
+| S4b | External M2M auth | **CORRECTION (2026-07-03): Databricks Apps DO accept SP M2M OAuth tokens.** Prior note claiming "Apps proxy blocks M2M tokens" was an untested speculation. Documented in Databricks docs "Connect to an API Databricks app using token authentication" (updated 2026-04-06). SP must have `CAN_USE` on the app. Token pattern: `WorkspaceClient(host, client_id=..., client_secret=...).config.authenticate()` → `{"Authorization": "Bearer <token>"}`. This unblocks Redpanda Connect, Lambda/edge relays, and any server-to-server caller using SP credentials. | Verify with a live curl test (see `.polly/specs/m2m-curl-test.md`). |
 | S5 | RLS defense-in-depth | **Closed (PR #24).** All 11 project-scoped tables now have DB-level `USING`/`WITH CHECK` RLS policies, backed by lazy per-human Postgres role provisioning. Previously app-layer WHERE clauses were the *only* backstop. | — |
 | S6 | `mark_messages_read` stub | **Closed (PR #23).** `read_at` column + index added (migration `003`); `unread_only` now filters for real. | — |
 
@@ -437,4 +457,4 @@ production hardening.
 | # | Area | Gap | Action |
 |---|------|-----|--------|
 | O1 | App compute polling | `deploy.sh` waits a hardcoded 300 s for app compute to start, no backoff or early-exit. | Replace with a proper poll loop (check status, sleep, retry with timeout). |
-| O2 | GitHub OAuth App credentials | `github_client_id` and `github_client_secret` in target-specific scope (`dev_<user_handle>_hi_genie_credentials` for dev, `hi_genie_staging_credentials` for staging) are currently set to `PLACEHOLDER_*` stub values. GitHub OAuth login flows will fail until real values are supplied. | Create a GitHub OAuth App at https://github.com/settings/developers, set callback URL to `https://<app-url>/auth/github/callback`, then run: `databricks secrets put-secret dev_<your_user_handle>_hi_genie_credentials github_client_id --string-value <real-id> -p fevm-hls-fde` and same for `github_client_secret` (or use the staging scope for staging). |
+| O2 | GitHub credentials | **Resolved (PR #32).** Real OAuth + GitHub App credentials provisioned; `/auth/github/*` (OAuth flow) and `/webhook/github` (webhook consumer) implemented. `deploy.sh` now checks/provisions all six GitHub secrets: `github_client_id`, `github_client_secret`, `github_app_id`, `github_app_private_key`, `github_installation_id`, `github_webhook_secret`. | — |

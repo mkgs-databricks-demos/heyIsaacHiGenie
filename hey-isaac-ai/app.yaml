@@ -26,3 +26,13 @@ env:
     valueFrom: github-client-id
   - name: HI_GENIE_GITHUB_CLIENT_SECRET
     valueFrom: github-client-secret
+
+  # GitHub App — read/observe lane (webhooks + repo observation), Phase 5
+  - name: HI_GENIE_GITHUB_APP_ID
+    valueFrom: github-app-id
+  - name: HI_GENIE_GITHUB_APP_PRIVATE_KEY
+    valueFrom: github-app-private-key
+  - name: HI_GENIE_GITHUB_APP_INSTALLATION_ID
+    valueFrom: github-app-installation-id
+  - name: HI_GENIE_GITHUB_WEBHOOK_SECRET
+    valueFrom: github-webhook-secret
