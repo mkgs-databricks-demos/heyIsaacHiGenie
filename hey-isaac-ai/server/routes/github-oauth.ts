@@ -10,7 +10,10 @@ export function githubOAuthRouter(db: Db) {
     const appUrl = process.env.HI_GENIE_APP_URL;
 
     if (!clientId || !appUrl) {
-      res.status(503).json({ error: 'GitHub OAuth not configured' });
+      res.status(503).json({
+        error: 'github_not_configured',
+        message: 'GitHub App credentials not configured. Use the owner dashboard to connect your GitHub App.',
+      });
       return;
     }
 
@@ -35,7 +38,11 @@ export function githubOAuthRouter(db: Db) {
     const state = typeof req.query.state === 'string' ? req.query.state : null;
 
     if (!clientId || !clientSecret || !appUrl) {
-      res.status(503).json({ error: 'GitHub OAuth not configured', state });
+      res.status(503).json({
+        error: 'github_not_configured',
+        message: 'GitHub App credentials not configured. Use the owner dashboard to connect your GitHub App.',
+        state,
+      });
       return;
     }
 

@@ -1,22 +1,70 @@
 import { createSign } from 'node:crypto';
 
-const APP_ID = process.env.HI_GENIE_GITHUB_APP_ID;
-const PRIVATE_KEY = process.env.HI_GENIE_GITHUB_APP_PRIVATE_KEY;
-
-if (!APP_ID) {
-  throw new Error('HI_GENIE_GITHUB_APP_ID is not configured. Set it via the GitHub App settings in the owner dashboard.');
+/**
+ * Thrown by GitHub App credential-dependent paths when the required secrets are
+ * absent. Routes catch this and return `503 { error: 'github_not_configured' }`
+ * so the server degrades gracefully instead of crashing at startup.
+ */
+export class GitHubNotConfiguredError extends Error {
+  constructor() {
+    super('GitHub App credentials not configured. Use the owner dashboard to connect your GitHub App.');
+    this.name = 'GitHubNotConfiguredError';
+  }
 }
-if (!PRIVATE_KEY) {
-  throw new Error('HI_GENIE_GITHUB_APP_PRIVATE_KEY is not configured. Set it via the GitHub App settings in the owner dashboard.');
+
+/** Env var names the GitHub App reads at runtime (populated from the secret scope). */
+export const GITHUB_ENV = {
+  appId: 'HI_GENIE_GITHUB_APP_ID',
+  privateKey: 'HI_GENIE_GITHUB_APP_PRIVATE_KEY',
+  clientId: 'HI_GENIE_GITHUB_CLIENT_ID',
+  clientSecret: 'HI_GENIE_GITHUB_CLIENT_SECRET',
+  webhookSecret: 'HI_GENIE_GITHUB_WEBHOOK_SECRET',
+  appUrl: 'HI_GENIE_APP_URL',
+} as const;
+
+/** Reports which GitHub App credentials are currently present in the environment. */
+export function githubFieldStatus() {
+  const has = (k: string) => typeof process.env[k] === 'string' && process.env[k]!.length > 0;
+  return {
+    app_id: has(GITHUB_ENV.appId),
+    private_key: has(GITHUB_ENV.privateKey),
+    client_id: has(GITHUB_ENV.clientId),
+    client_secret: has(GITHUB_ENV.clientSecret),
+    webhook_secret: has(GITHUB_ENV.webhookSecret),
+  };
 }
 
-// Normalize escaped newlines from secret scope
-const pemKey = PRIVATE_KEY.replace(/\\n/g, '\n');
+/**
+ * Minimum credentials required to mint an App JWT / installation token. When
+ * `app_id` or `private_key` are missing, *all* GitHub API features are broken.
+ */
+export function canMintAppJwt(): boolean {
+  const f = githubFieldStatus();
+  return f.app_id && f.private_key;
+}
 
+/** True when every credential needed for the full GitHub App flow is present. */
+export function isGitHubConfigured(): boolean {
+  const f = githubFieldStatus();
+  return f.app_id && f.private_key && f.client_id && f.client_secret;
+}
+
+/**
+ * Mints a short-lived GitHub App JWT (RS256) used to request installation
+ * tokens. Throws {@link GitHubNotConfiguredError} when credentials are absent.
+ */
 async function mintAppJwt(): Promise<string> {
+  if (!canMintAppJwt()) {
+    throw new GitHubNotConfiguredError();
+  }
+
+  const appId = process.env[GITHUB_ENV.appId]!;
+  // Normalize escaped newlines from secret scope
+  const pemKey = process.env[GITHUB_ENV.privateKey]!.replace(/\\n/g, '\n');
+
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({ iat: now - 60, exp: now + 600, iss: APP_ID })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ iat: now - 60, exp: now + 600, iss: appId })).toString('base64url');
   const signingInput = `${header}.${payload}`;
   const sign = createSign('RSA-SHA256');
   sign.update(signingInput);
@@ -31,13 +79,17 @@ interface CacheEntry {
 
 const tokenCache = new Map<number, CacheEntry>();
 
+/**
+ * Exchanges an App JWT for an installation access token. Throws
+ * {@link GitHubNotConfiguredError} when credentials are absent.
+ */
 export async function getInstallationToken(installationId: number): Promise<string> {
   const cached = tokenCache.get(installationId);
   if (cached && cached.expiresAt > Date.now() + 60_000) {
     return cached.token;
   }
 
-  const jwt = await mintAppJwt();
+  const jwt = await mintAppJwt(); // throws GitHubNotConfiguredError if unconfigured
   const resp = await fetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {

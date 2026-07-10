@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import LoadingView from './components/LoadingView';
 import ProjectView from './components/ProjectView';
 import ChatView from './components/ChatView';
+import GitHubAppSetupBanner from './components/GitHubAppSetupBanner';
+import { fetchGitHubStatus, type GitHubStatus } from './lib/github';
 import type { Identity, View, Thread, AgentConfig } from './lib/types';
 
 const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
@@ -30,6 +32,17 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [threads, setThreads] = useState<Thread[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
+  const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
+
+  const refreshGitHubStatus = useCallback(async () => {
+    try {
+      const status = await fetchGitHubStatus();
+      setGithubStatus(status);
+    } catch {
+      // Non-fatal — owner dashboard degrades to hiding GitHub settings.
+      setGithubStatus(null);
+    }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -56,6 +69,9 @@ export default function App() {
         const tokenData = await tokenRes.json() as PersonaTokenResponse;
         setPersonaToken(tokenData.token);
         setView({ kind: 'project' });
+
+        // Step 3: Load GitHub App status (owner-only; null when unauthorized).
+        void refreshGitHubStatus();
       } catch (e) {
         setInitError(e instanceof Error ? e.message : String(e));
         setView({ kind: 'project' }); // Show partial UI even on error
@@ -63,7 +79,7 @@ export default function App() {
     }
 
     void init();
-  }, []);
+  }, [refreshGitHubStatus]);
 
   function handleStartThread(thread: Thread, agentId: string) {
     setThreads(prev => [...prev, thread]);
@@ -91,6 +107,10 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Header identity={identity} />
+
+      {githubStatus && view.kind === 'project' && (
+        <GitHubAppSetupBanner status={githubStatus} onConfigured={refreshGitHubStatus} />
+      )}
 
       {initError && (
         <div
@@ -121,6 +141,8 @@ export default function App() {
             <ProjectView
               agents={AGENTS}
               personaToken={personaToken}
+              githubStatus={githubStatus}
+              onRefreshGitHubStatus={refreshGitHubStatus}
               onStartThread={handleStartThread}
             />
           )}

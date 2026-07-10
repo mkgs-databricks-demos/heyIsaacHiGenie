@@ -261,7 +261,7 @@ export function reposRouter(db: Db): Router {
     // Relay SP env vars must be present before we touch GitHub
     const relaySPClientId = process.env.RELAY_SP_CLIENT_ID?.trim();
     const relaySPClientSecret = process.env.RELAY_SP_CLIENT_SECRET?.trim();
-    const appPublicUrl = process.env.APP_PUBLIC_URL?.trim();
+    const appPublicUrl = process.env.HI_GENIE_APP_URL?.trim();
     if (!relaySPClientId || !relaySPClientSecret || !appPublicUrl) {
       res.status(503).json({
         error: 'relay_sp_not_configured',

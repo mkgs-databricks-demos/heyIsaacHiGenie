@@ -9,6 +9,7 @@ import { githubOAuthRouter } from './routes/github-oauth.js';
 import { githubWebhookRouter } from './routes/github-webhook.js';
 import { reposRouter } from './routes/repos.js';
 import { githubReposRouter } from './routes/github-repos.js';
+import { githubAppRouter } from './routes/github-app.js';
 import type { Db } from './db/index.js';
 import { installLakebaseSearchPath } from './db/searchPath.js';
 import { runMigrations } from './migrations/migrate.js';
@@ -72,6 +73,10 @@ const AppKit = createApp({
       // Repo registration — per-repo secrets, installation_id, caller stub
       app.use('/api/repos', reposRouter(db));
       app.use('/api/github/repos', githubReposRouter());
+
+      // GitHub App settings — owner dashboard reads status and writes creds to
+      // the Databricks secret scope. Auth-guarded (project owner / admin).
+      app.use('/api/github', githubAppRouter(db));
 
       // Identity debug — useful during development to confirm OBO headers
       app.get('/api/me', (req, res) => {
