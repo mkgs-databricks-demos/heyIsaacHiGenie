@@ -65,11 +65,6 @@ export function githubWebhookRouter(db: Db) {
         }
       }
 
-      // Fall back to global env var for backward compatibility during migration
-      if (!webhookSecret) {
-        webhookSecret = process.env.HI_GENIE_GITHUB_WEBHOOK_SECRET;
-      }
-
       if (!webhookSecret) {
         res.status(400).json({ error: 'webhook_not_configured' });
         return;
