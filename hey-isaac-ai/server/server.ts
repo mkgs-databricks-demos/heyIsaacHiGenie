@@ -69,7 +69,7 @@ const AppKit = createApp({
       // GitHub OAuth flow — write-lane per-user OBO auth for external agents
       app.use('/auth/github', githubOAuthRouter(db));
 
-      // Repo registration — mints GitHub App tokens, sets Actions secrets, upserts repo_config
+      // Repo registration — per-repo secrets, installation_id, caller stub
       app.use('/api/repos', reposRouter(db));
       app.use('/api/github/repos', githubReposRouter());
 

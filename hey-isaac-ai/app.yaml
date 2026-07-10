@@ -32,7 +32,14 @@ env:
     valueFrom: github-app-id
   - name: HI_GENIE_GITHUB_APP_PRIVATE_KEY
     valueFrom: github-app-private-key
-  - name: HI_GENIE_GITHUB_APP_INSTALLATION_ID
-    valueFrom: github-app-installation-id
+  # Note: HI_GENIE_GITHUB_APP_INSTALLATION_ID removed — resolved per-repo dynamically
   - name: HI_GENIE_GITHUB_WEBHOOK_SECRET
     valueFrom: github-webhook-secret
+
+  # Relay SP credentials — distributed to repos at register time (Phase 5c)
+  - name: RELAY_SP_CLIENT_ID
+    valueFrom: relay-sp-client-id
+  - name: RELAY_SP_CLIENT_SECRET
+    valueFrom: relay-sp-client-secret
+  - name: APP_PUBLIC_URL
+    valueFrom: app-public-url
