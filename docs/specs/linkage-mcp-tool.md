@@ -80,8 +80,13 @@ and `req.agentId`, and the JWT claims include `project_id` and `agent_id` (`auth
    (`github-webhook.ts:91`):
    `SELECT 1 FROM app.repo_config, jsonb_array_elements(repos) e WHERE project_id=$1 AND e->>'url'=$2`.
    Reject unknown repos.
-2. **thread_id / task_id / notify_thread_id belong to project_id** — explicit
-   `SELECT 1 ... WHERE id=$ AND project_id=$`. FKs alone do not scope to project.
+2. **thread_id / task_id / notify_thread_id / notify_to_agent_id belong to
+   project_id** — explicit `SELECT 1 ... WHERE id=$ AND project_id=$`. FKs alone
+   do not scope to project. `notify_to_agent_id` in particular must be
+   project-scoped: `messages.to_agent_id` is not covered by the messages RLS
+   policy (which scopes only by `thread_id`'s project) and the NOTIFY bridge
+   resolves the target agent by id with no project check, so an unscoped UUID
+   could wake an agent in another project.
 3. If `notify_content` is set, `notify_thread_id` must be set (and vice-versa) —
    `messages.thread_id` is `NOT NULL` (`001:90`).
 

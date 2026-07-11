@@ -415,6 +415,10 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
         const r = await db.query('SELECT 1 FROM app.threads WHERE id = $1 AND project_id = $2', [notify_thread_id, project_id]);
         if (r.rows.length === 0) return err('notify_thread_id does not belong to this project');
       }
+      if (notify_to_agent_id) {
+        const r = await db.query('SELECT 1 FROM app.agents WHERE id = $1 AND project_id = $2', [notify_to_agent_id, project_id]);
+        if (r.rows.length === 0) return err('notify_to_agent_id does not belong to this project');
+      }
 
       // opened_by is NOT NULL and must be lowercase; prefer the reported github
       // login, fall back to the calling human so the column is always populated.
