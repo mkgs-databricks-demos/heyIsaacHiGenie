@@ -105,6 +105,46 @@ Inbound webhook delivery (and therefore a relay) would earn its keep **only** if
 requirement demands a **sub-second reaction to a cold, human-originated git event with no
 agent in or near the loop**. No such requirement exists today.
 
+## Addendum (2026-07-11) — agents use the official GitHub MCP
+
+This decision assumes each agent performs all git operations through the **official
+GitHub MCP server**, not a Hi-Genie-built GitHub client. This is the concrete form of the
+"our App governs, the agents' own GitHub MCP does the work" stance in
+`docs/05-github-integration.md`. It refines the decision above as follows.
+
+**Division of labor**
+
+- **Official GitHub MCP** — the agents' hands on git: read PR / CI / review / code state,
+  create branches, commit, push, open PRs.
+- **Hi-Genie app** — *policy* (which repo backs a project, per-agent working areas,
+  branch / merge rules — the existing `repo_config`) and *linkage* (record a PR / branch /
+  status against a thread/task in Lakebase and fire NOTIFY).
+- **Lakebase** — short-term memory, long-term project memory, inter-agent messaging.
+
+We build **no outbound GitHub readers**. The "outbound direction" follow-up below shrinks
+to the **linkage half only**: a Hi-Genie MCP tool that records what an agent did in
+GitHub (obtained via the official MCP) into Lakebase.
+
+1. **Auth — per agent, as a human.** Each agent authenticates to the official GitHub MCP
+   with a **human's** GitHub credentials via standard **Dynamic Client Registration (DCR)
+   or OAuth** — not a shared service principal. Git actions are therefore attributed to
+   real people, per agent. This is independent of the GitHub App the Hi-Genie app itself
+   provisioned.
+
+2. **Linkage is trusted, reconciled peer-to-peer.** The app **trusts** the agent's report
+   when writing linkage into Lakebase — no eager server-side verification against GitHub.
+   Correctness is **emergent**: if another agent later pulls the full code/state from
+   GitHub (via the official MCP) and finds a discrepancy against what Lakebase records, it
+   **messages the original author agent to verify** — a discrepancy → message → NOTIFY →
+   author-reconciles loop, fully in keeping with the Lakebase-native coordination model.
+   No server-side truth-checking is added.
+
+3. **Keep the app's own GitHub App for now.** The GitHub App credentials the Hi-Genie app
+   provisioned (client id/secret, app id, private key, installation) are **retained** —
+   not shrunk or retired — in case the app still needs server-side GitHub access (e.g.
+   `register_repo` / preflight installation checks) or a future need appears. Revisit only
+   deliberately.
+
 ## Consequences
 
 **Positive**
@@ -128,10 +168,10 @@ agent in or near the loop**. No such requirement exists today.
 
 **Follow-ups (not required by this decision, but implied)**
 
-- Build the **outbound direction**: an MCP tool (or the DevOps-runner agent's toolset)
-  that reads GitHub state and records it into Lakebase as messages + reference-table rows.
-  This is the piece that makes GitHub genuinely useful to the agents and never touches an
-  IP ACL.
+- Build the **linkage tool**: a Hi-Genie MCP tool that records what an agent did in
+  GitHub — read via the **official GitHub MCP** (see Addendum) — into Lakebase as messages
+  + reference-table rows against the thread/task. We build no outbound GitHub readers
+  ourselves; this never touches an IP ACL.
 - The broken **Lakebase→UC CDF sync** (`lb_pull_requests_history` stale since
   2026-07-03) remains worth fixing, but as an **analytics/observability** concern fully
   decoupled from coordination.
