@@ -30,6 +30,18 @@ const migrations: Migration[] = [
 //   ALTER TABLE <name> REPLICA IDENTITY FULL;
 // This ensures CDC / logical-replication consumers receive full before/after row
 // images for all tables from the moment the table is created.
+//
+// CONVENTION (wal2delta registration): every new `app.*` table must ALSO be
+// registered into the managed control table `wal2delta.tables` (schema owner
+// cloud_admin) so the platform Postgres -> Unity Catalog CDF sync picks it up.
+// That registration is NOT done here: the app SPN that runs these migrations has
+// no INSERT/UPDATE on wal2delta.tables. It is reconciled at deploy time by the
+// elevated platform bootstrap step
+// (hey-isaac-infra/src/notebooks/platform_bootstrap.py), which registers missing
+// REPLICA IDENTITY FULL `app.*` tables as PENDING and resets stale SKIPPED
+// entries once their table gains FULL. Adding the REPLICA IDENTITY FULL line
+// above is what makes a new table eligible for that reconciliation. See
+// docs/adr/002-wal2delta-registration-reconciliation.md.
 
 // Explicitly qualified to public — once search_path is app, public (see
 // db/index.ts), an unqualified CREATE TABLE would land _migrations in `app`

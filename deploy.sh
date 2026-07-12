@@ -404,12 +404,82 @@ for db in dbs:
 }
 
 # --------------------------------------------------------------------------- #
+# resolve_lakebase_endpoint — resolve the (non-secret) Postgres endpoint + host
+# for a branch. Echoes "<endpoint_resource> <host>", or "__unset__" when Lakebase
+# is not configured (no project). Returns NON-ZERO on a genuine resolution failure
+# (project configured but endpoint/host cannot be resolved) so the caller fails
+# loud instead of degrading to a silent skip. No secret/token is produced here —
+# the bootstrap notebook mints its own short-lived credential at runtime.
+# --------------------------------------------------------------------------- #
+resolve_lakebase_endpoint() {
+  local branch_id="$1"
+  [[ -z "${LAKEBASE_PROJECT_ID}" || -z "${branch_id}" ]] && { echo "__unset__"; return 0; }
+
+  local eps_json parsed
+  eps_json=$(databricks postgres list-endpoints \
+    "projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}" \
+    --output json 2>/dev/null) || return 1
+
+  parsed=$(echo "${eps_json}" | python3 -c "
+import sys, json
+try:
+    eps = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+if isinstance(eps, dict): eps = eps.get('endpoints', eps.get('items', []))
+if not eps: sys.exit(1)
+ep = eps[0]
+name = ep.get('name', '')
+host = ep.get('status', {}).get('hosts', {}).get('host', '')
+if not name or not host: sys.exit(1)
+print(name + ' ' + host)
+" 2>/dev/null) || return 1
+
+  [[ -n "${parsed}" ]] || return 1
+  echo "${parsed}"
+}
+
+# --------------------------------------------------------------------------- #
 # run_platform_bootstrap
 # --------------------------------------------------------------------------- #
 run_platform_bootstrap() {
   local bundle_dir="${SCRIPT_DIR}/${INFRA_BUNDLE}"
   log "Running platform bootstrap (target: ${TARGET})"
-  (cd_bundle "${bundle_dir}" && databricks bundle run "${PLATFORM_BOOTSTRAP_JOB}" --target "${TARGET}") || \
+
+  # Resolve the Lakebase endpoint/host (non-secret) so the bootstrap notebook can
+  # run its Postgres steps: the dev seed AND the wal2delta registration
+  # reconciliation. The reconciliation must run as the elevated deployer identity
+  # (a member of databricks_superuser) because the app runtime SPN cannot write
+  # the cloud_admin-owned wal2delta.tables control table. The token is minted
+  # inside the notebook (never passed as a CLI arg / job parameter).
+  #
+  # Fail-safe contract: if Lakebase IS configured (project resolved) but the
+  # endpoint cannot be resolved, FAIL LOUD — do NOT degrade to a skip, which would
+  # let an existing app silently remain unreconciled. Skipping is only legitimate
+  # when Lakebase is not configured (no project), or — checked inside the notebook —
+  # on a genuine first deploy where the app schema does not exist yet.
+  local branch_id="production"
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    branch_id="dev-${USER_HANDLE//_/-}"
+  fi
+
+  local ep_host
+  if ! ep_host=$(resolve_lakebase_endpoint "${branch_id}"); then
+    fail "Lakebase is configured (project ${LAKEBASE_PROJECT_ID}, branch ${branch_id}) but its Postgres endpoint/host could not be resolved. Refusing to run platform bootstrap, which would silently skip the wal2delta reconciliation. Ensure the branch endpoint is READY and re-run."
+  fi
+
+  local lb_endpoint="__unset__" lb_host="__unset__"
+  if [[ "${ep_host}" == "__unset__" ]]; then
+    warn "Lakebase not configured (no project) — bootstrap will skip Postgres steps (seed + wal2delta reconciliation)."
+  else
+    lb_endpoint="${ep_host%% *}"
+    lb_host="${ep_host##* }"
+    log "Lakebase endpoint resolved — bootstrap will run seed + wal2delta reconciliation (token minted in-notebook)"
+  fi
+
+  (cd_bundle "${bundle_dir}" && databricks bundle run "${PLATFORM_BOOTSTRAP_JOB}" \
+    --target "${TARGET}" \
+    --params "lakebase_endpoint=${lb_endpoint},lakebase_host=${lb_host}") || \
     fail "Platform bootstrap failed. Check the Databricks Jobs UI."
   ok "Platform bootstrap complete"
 }
@@ -1099,11 +1169,11 @@ if [[ "${DEPLOY_INFRA}" == true ]]; then
   if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
     INFRA_DEPLOY_ARGS+=(--var "user_handle=${USER_HANDLE}")
   fi
-  # TODO(phase1): Wire lakebase_connection_string to infra bundle deploy args.
-  # The connection string requires Lakebase branch credentials that are injected
-  # at app runtime. For now, platform_bootstrap.py receives an empty string and
-  # skips DDL execution if lakebase_connection_string is empty or '__unset__'.
-  # INFRA_DEPLOY_ARGS will be updated once the Lakebase connection string pattern is confirmed.
+  # Lakebase Postgres steps run in the platform bootstrap job (--run-setup), not
+  # at infra-deploy time: run_platform_bootstrap resolves the (non-secret)
+  # endpoint/host and passes them to the job, which mints its own short-lived
+  # credential in-notebook. No connection string / token is threaded through the
+  # bundle deploy args.
   deploy_bundle "${INFRA_BUNDLE}" "${INFRA_DEPLOY_ARGS[@]+"${INFRA_DEPLOY_ARGS[@]}"}"
 fi
 
