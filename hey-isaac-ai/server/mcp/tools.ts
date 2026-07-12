@@ -342,4 +342,154 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       return ok(result.rows[0]);
     },
   );
+
+  // Tool 14: record_git_action
+  // GitHub -> Lakebase linkage (ADR 001). An already-active agent that just did
+  // git work via the official GitHub MCP records the fact into app.pull_requests
+  // and (optionally, bundled in ONE atomic statement) posts a wake message into
+  // app.messages, firing the existing hi_genie_messages NOTIFY trigger.
+  server.tool(
+    'record_git_action',
+    'Record a GitHub git action (opened/updated PR, push, merge) into Hi-Genie state, and optionally post a wake message to another agent — both in one transaction. Agents do the git work via the official GitHub MCP; this tool records the resulting fact. project_id is taken from the persona token, never from input.',
+    {
+      repo_url: z.string().url().describe('Repo URL — must match a repo registered to the calling agent\'s project'),
+      pr_number: z.number().int().positive().optional().describe('PR number. If omitted, no pull_requests row is written (narration-only path)'),
+      pr_url: z.string().url().optional().describe('PR URL'),
+      status: z.enum(['draft', 'open', 'merged', 'closed']).optional().describe('PR status (default "open")'),
+      branch_ref: z.string().optional().describe('Head branch ref'),
+      base_branch: z.string().optional().describe('Base branch'),
+      author_github_login: z.string().optional().describe('GitHub login of the PR author (stored lowercased)'),
+      thread_id: z.string().uuid().optional().describe('Thread to link the PR to (must belong to the project)'),
+      task_id: z.string().uuid().optional().describe('Task to link the PR to (must belong to the project)'),
+      notify_thread_id: z.string().uuid().optional().describe('Thread to post the wake message into (required with notify_content)'),
+      notify_content: z.string().optional().describe('Narration to post as a wake message (required with notify_thread_id)'),
+      notify_to_agent_id: z.string().uuid().optional().describe('Agent to route the wake message to'),
+    },
+    async ({
+      repo_url,
+      pr_number,
+      pr_url,
+      status = 'open',
+      branch_ref,
+      base_branch,
+      author_github_login,
+      thread_id,
+      task_id,
+      notify_thread_id,
+      notify_content,
+      notify_to_agent_id,
+    }) => {
+      // project_id comes from the persona token (via the agent), NEVER from input.
+      const agentRow = await db.query<{ project_id: string }>(
+        'SELECT project_id FROM app.agents WHERE id = $1',
+        [agentId],
+      );
+      if (agentRow.rows.length === 0) return err('persona_agent_not_found');
+      const project_id = agentRow.rows[0].project_id;
+
+      // Message half is all-or-nothing (messages.thread_id is NOT NULL).
+      if ((notify_content == null) !== (notify_thread_id == null)) {
+        return err('notify_content and notify_thread_id must be provided together');
+      }
+
+      // Validate BEFORE any write.
+      // 1. repo_url must match a repo registered to this project.
+      const repoMatch = await db.query(
+        `SELECT 1 FROM app.repo_config rc, jsonb_array_elements(rc.repos) e
+         WHERE rc.project_id = $1 AND e->>'url' = $2
+         LIMIT 1`,
+        [project_id, repo_url],
+      );
+      if (repoMatch.rows.length === 0) return err(`repo_url not registered to this project: ${repo_url}`);
+
+      // 2. thread_id / task_id / notify_thread_id must belong to project_id.
+      if (thread_id) {
+        const r = await db.query('SELECT 1 FROM app.threads WHERE id = $1 AND project_id = $2', [thread_id, project_id]);
+        if (r.rows.length === 0) return err('thread_id does not belong to this project');
+      }
+      if (task_id) {
+        const r = await db.query('SELECT 1 FROM app.tasks WHERE id = $1 AND project_id = $2', [task_id, project_id]);
+        if (r.rows.length === 0) return err('task_id does not belong to this project');
+      }
+      if (notify_thread_id) {
+        const r = await db.query('SELECT 1 FROM app.threads WHERE id = $1 AND project_id = $2', [notify_thread_id, project_id]);
+        if (r.rows.length === 0) return err('notify_thread_id does not belong to this project');
+      }
+      if (notify_to_agent_id) {
+        const r = await db.query('SELECT 1 FROM app.agents WHERE id = $1 AND project_id = $2', [notify_to_agent_id, project_id]);
+        if (r.rows.length === 0) return err('notify_to_agent_id does not belong to this project');
+      }
+
+      // opened_by is NOT NULL and must be lowercase; prefer the reported github
+      // login, fall back to the calling human so the column is always populated.
+      const openedBy = (author_github_login ?? human).toLowerCase();
+      const authorLogin = author_github_login ? author_github_login.toLowerCase() : null;
+
+      // Both writes run in ONE atomic statement (a single data-modifying CTE is
+      // its own implicit transaction), executed via the RLS-scoped per-user pool
+      // from db.asUser(req). If either INSERT fails, the whole statement aborts —
+      // no orphan wake, no silent state. The PR upsert is skipped when pr_number
+      // is null; the message insert is skipped when notify_content is null.
+      try {
+        const result = await db.asUser(req).query<{
+          pull_request: { id: string; pr_number: number; status: string } | null;
+          message_id: string | null;
+        }>(
+          `WITH pr_upsert AS (
+             INSERT INTO app.pull_requests
+               (project_id, thread_id, task_id, repo_url, pr_number, pr_url, status,
+                opened_by, branch_ref, base_branch, author_github_login, created_at, updated_at)
+             SELECT $1::uuid, $2::uuid, $3::uuid, $4::text, $5::int, $6::text, $7::text,
+                    $8::text, $9::text, $10::text, $11::text, now(), now()
+             WHERE $5::int IS NOT NULL
+             ON CONFLICT (project_id, pr_number) DO UPDATE SET
+               status              = EXCLUDED.status,
+               pr_url              = EXCLUDED.pr_url,
+               branch_ref          = EXCLUDED.branch_ref,
+               base_branch         = EXCLUDED.base_branch,
+               author_github_login = EXCLUDED.author_github_login,
+               thread_id           = COALESCE(EXCLUDED.thread_id, app.pull_requests.thread_id),
+               task_id             = COALESCE(EXCLUDED.task_id, app.pull_requests.task_id),
+               updated_at          = now()
+             RETURNING id, pr_number, status
+           ),
+           msg_insert AS (
+             INSERT INTO app.messages
+               (thread_id, parent_agent_id, author_user_id, to_agent_id, content, role)
+             SELECT $12::uuid, $13::uuid, NULL, $14::uuid, $15::text, 'assistant'
+             WHERE $15::text IS NOT NULL
+             RETURNING id
+           )
+           SELECT
+             (SELECT to_jsonb(p) FROM pr_upsert p) AS pull_request,
+             (SELECT id FROM msg_insert) AS message_id`,
+          [
+            project_id,
+            thread_id ?? null,
+            task_id ?? null,
+            repo_url,
+            pr_number ?? null,
+            pr_url ?? null,
+            status,
+            openedBy,
+            branch_ref ?? null,
+            base_branch ?? null,
+            authorLogin,
+            notify_thread_id ?? null,
+            agentId,
+            notify_to_agent_id ?? null,
+            notify_content ?? null,
+          ],
+        );
+        const row = result.rows[0];
+        return ok({
+          ok: true,
+          pull_request: row?.pull_request ?? null,
+          message_id: row?.message_id ?? null,
+        });
+      } catch (e) {
+        return err(e instanceof Error ? e.message : 'record_git_action failed');
+      }
+    },
+  );
 }
