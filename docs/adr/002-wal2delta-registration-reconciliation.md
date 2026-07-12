@@ -76,9 +76,21 @@ mechanism — because:
 - Bootstrap already runs elevated at deploy time and already owns cross-cutting
   registration/DDL.
 
-`deploy.sh`'s `run_platform_bootstrap` now resolves a Lakebase connection string
-(deployer OAuth token) and passes it to the bootstrap job, so the step actually
-executes rather than being a silent no-op.
+`deploy.sh`'s `run_platform_bootstrap` resolves the Lakebase **endpoint + host**
+(both non-secret) and passes them to the bootstrap job so the step actually
+executes rather than being a silent no-op. The Postgres **token is minted inside
+the notebook at runtime** (`POST /api/2.0/postgres/credentials` as the job's
+identity) — it is never placed in CLI args or job-run parameters.
+
+**Fail-safe:** the reconciliation must run whenever the app tables exist. Two
+skips are legitimate: (a) Lakebase is not configured (no project) — `deploy.sh`
+warns and passes `__unset__`; (b) a genuine first deploy where the `app` schema
+does not exist yet — the notebook detects this via `to_regnamespace('app')` and
+skips gracefully. Anything else fails loud: if Lakebase IS configured but the
+endpoint cannot be resolved, `deploy.sh` hard-fails rather than degrading to a
+skip; and if the endpoint is provided but the credential cannot be minted, the
+notebook raises. A resolution failure must never masquerade as a first-deploy
+skip.
 
 ## Reconciliation logic (idempotent)
 
@@ -86,7 +98,9 @@ For the `app` schema only:
 
 1. **Register missing tables** — every base table in schema `app` with
    `relreplident = 'f'` (FULL) not present in `wal2delta.tables` (join on
-   `table_oid`) is inserted with `status = 'PENDING'`.
+   `table_oid`) is inserted with `status = 'PENDING'`
+   (`ON CONFLICT (table_oid) DO NOTHING` makes it race-safe against a concurrent
+   bootstrap run).
 2. **Reset stale SKIPPED** — any `app.*` row in `wal2delta.tables` with
    `status = 'SKIPPED'` whose table now has FULL is set to `status = 'PENDING'`
    with `status_detail` cleared. (This is the `repo_config` case.)

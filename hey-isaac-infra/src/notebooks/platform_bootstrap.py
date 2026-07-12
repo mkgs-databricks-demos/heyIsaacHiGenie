@@ -3,7 +3,10 @@
 # MAGIC ## Hey Isaac / Hi Genie — Platform Bootstrap
 # MAGIC
 # MAGIC Stores `workspace_url` in the secret scope and validates admin-provisioned secrets.
-# MAGIC Also executes Lakebase DDL (schema + seed) when `lakebase_connection_string` is set.
+# MAGIC Also runs Lakebase Postgres steps (dev seed + wal2delta registration
+# MAGIC reconciliation) when a `lakebase_endpoint` / `lakebase_host` is provided.
+# MAGIC The database credential is minted at runtime as the job's identity — it is
+# MAGIC never passed in via CLI args or job parameters.
 # MAGIC Run once after the infra bundle deploys, before deploying the app bundle.
 
 # COMMAND ----------
@@ -11,11 +14,16 @@
 from databricks.sdk import WorkspaceClient
 
 dbutils.widgets.text("secret_scope_name", "dev_REPLACE_ME_hi_genie_credentials")  # type: ignore[name-defined]
-dbutils.widgets.text("lakebase_connection_string", "__unset__")  # type: ignore[name-defined]
+# Non-secret Lakebase connection metadata. The short-lived Postgres token is
+# generated at runtime (see the Postgres steps below); it is NOT accepted as a
+# widget/parameter so it can never appear in process args or job-run metadata.
+dbutils.widgets.text("lakebase_endpoint", "__unset__")  # type: ignore[name-defined]
+dbutils.widgets.text("lakebase_host", "__unset__")  # type: ignore[name-defined]
 dbutils.widgets.text("target", "dev")  # type: ignore[name-defined]
 
 scope = dbutils.widgets.get("secret_scope_name")  # type: ignore[name-defined]
-lakebase_connection_string = dbutils.widgets.get("lakebase_connection_string")  # type: ignore[name-defined]
+lakebase_endpoint = dbutils.widgets.get("lakebase_endpoint").strip()  # type: ignore[name-defined]
+lakebase_host = dbutils.widgets.get("lakebase_host").strip()  # type: ignore[name-defined]
 target = dbutils.widgets.get("target")  # type: ignore[name-defined]
 
 w = WorkspaceClient()
@@ -121,6 +129,7 @@ ON CONFLICT (agent_id, user_id) DO NOTHING;
 # once reconciled.
 RECONCILE_WAL2DELTA_SQL = """
 -- 1. Register missing app.* base tables that have REPLICA IDENTITY FULL.
+--    ON CONFLICT keeps this race-safe against a concurrent bootstrap run.
 INSERT INTO wal2delta.tables (table_oid, status)
 SELECT c.oid, 'PENDING'
 FROM pg_class c
@@ -128,7 +137,8 @@ JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'app'
   AND c.relkind = 'r'
   AND c.relreplident = 'f'
-  AND NOT EXISTS (SELECT 1 FROM wal2delta.tables t WHERE t.table_oid = c.oid);
+  AND NOT EXISTS (SELECT 1 FROM wal2delta.tables t WHERE t.table_oid = c.oid)
+ON CONFLICT (table_oid) DO NOTHING;
 """
 
 RESET_STALE_SKIPPED_SQL = """
@@ -144,21 +154,54 @@ WHERE t.table_oid = c.oid
   AND t.status = 'SKIPPED';
 """
 
-_conn_str = lakebase_connection_string.strip()
-if not _conn_str or _conn_str == "__unset__":
-    print("⚠  lakebase_connection_string is empty or unset — skipping seed data")
+# The Postgres steps skip ONLY when Lakebase is not configured for this run
+# (no endpoint/host passed). Once an endpoint IS provided, any failure to mint a
+# credential or connect is raised (fail loud) — it must NOT masquerade as a skip.
+# The only legitimate skip when configured is a genuine first deploy where the app
+# schema does not exist yet (the app applies its migrations on startup, after
+# bootstrap); that case is detected below by inspecting the live schema.
+if (
+    not lakebase_endpoint
+    or lakebase_endpoint == "__unset__"
+    or not lakebase_host
+    or lakebase_host == "__unset__"
+):
+    print("⚠  lakebase_endpoint/host not provided — skipping seed data")
     print("   AND wal2delta registration reconciliation.")
-    print("   Set the widget value to run Postgres steps against Lakebase.")
+    print("   (Lakebase is not configured for this run — deploy.sh passes these")
+    print("   once the branch endpoint is available.)")
 else:
+    import urllib.parse
+
     import psycopg2  # available on Databricks Runtime
 
+    # Mint a short-lived Lakebase database credential at runtime, as the job's
+    # identity. Generating it here (rather than accepting a connection string as a
+    # parameter) keeps the token out of CLI args and job-run metadata.
+    _cred = w.api_client.do(
+        "POST", "/api/2.0/postgres/credentials", body={"endpoint": lakebase_endpoint}
+    )
+    _token = _cred.get("token") if isinstance(_cred, dict) else None
+    if not _token:
+        raise SystemExit(
+            f"Could not mint a Lakebase database credential for endpoint "
+            f"{lakebase_endpoint}. Refusing to skip Postgres steps."
+        )
+
+    _user = w.current_user.me().user_name
+    _conn_str = (
+        f"postgresql://{urllib.parse.quote(_user, safe='')}:"
+        f"{urllib.parse.quote(_token, safe='')}@{lakebase_host}:5432/"
+        f"databricks_postgres?sslmode=require"
+    )
+
     conn = psycopg2.connect(_conn_str)
+    del _token, _conn_str  # plaintext token no longer needed in local scope
     try:
         conn.autocommit = True
         with conn.cursor() as cur:
-            # Guard: on a first deploy the app schema does not exist yet (the app
-            # applies its migrations on startup, after bootstrap). Skip Postgres
-            # steps gracefully — re-run bootstrap after the app has started.
+            # Guard: on a first deploy the app schema does not exist yet. Skip
+            # Postgres steps gracefully — re-run bootstrap after the app started.
             cur.execute("SELECT to_regnamespace('app') IS NOT NULL")
             app_schema_ready = cur.fetchone()[0]
 
