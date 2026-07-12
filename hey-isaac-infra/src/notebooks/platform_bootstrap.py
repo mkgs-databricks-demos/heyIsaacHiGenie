@@ -100,10 +100,55 @@ VALUES (
 ON CONFLICT (agent_id, user_id) DO NOTHING;
 """
 
+# --------------------------------------------------------------------------- #
+# wal2delta registration reconciliation (idempotent)
+#
+# `wal2delta.tables` (schema owner: cloud_admin) is the control table that drives
+# the platform-managed Postgres -> Unity Catalog CDF sync. It is keyed by
+# `table_oid` and is NOT auto-reconciled with the `app` schema: new `app.*` tables
+# are never registered, and stale `SKIPPED` entries (whose table has since gained
+# REPLICA IDENTITY FULL — e.g. app.repo_config) are never re-evaluated.
+#
+# This runs here, in the elevated bootstrap step, on purpose: the app runtime SPN
+# that applies the TypeScript migrations does NOT have INSERT/UPDATE on
+# wal2delta.tables, whereas the bootstrap/deploy identity is a member of
+# databricks_superuser (which holds those privileges). A migration therefore
+# CANNOT do this; the bootstrap can. See docs/adr/002-wal2delta-registration-
+# reconciliation.md for the privilege evidence.
+#
+# Idempotent and conservative: STREAMING rows and non-`app` schemas
+# (public._migrations, appkit.*) are never touched. Re-running changes nothing
+# once reconciled.
+RECONCILE_WAL2DELTA_SQL = """
+-- 1. Register missing app.* base tables that have REPLICA IDENTITY FULL.
+INSERT INTO wal2delta.tables (table_oid, status)
+SELECT c.oid, 'PENDING'
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'app'
+  AND c.relkind = 'r'
+  AND c.relreplident = 'f'
+  AND NOT EXISTS (SELECT 1 FROM wal2delta.tables t WHERE t.table_oid = c.oid);
+"""
+
+RESET_STALE_SKIPPED_SQL = """
+-- 2. Reset stale SKIPPED app.* rows whose table now has REPLICA IDENTITY FULL.
+UPDATE wal2delta.tables t
+SET status = 'PENDING', status_detail = NULL
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE t.table_oid = c.oid
+  AND n.nspname = 'app'
+  AND c.relkind = 'r'
+  AND c.relreplident = 'f'
+  AND t.status = 'SKIPPED';
+"""
+
 _conn_str = lakebase_connection_string.strip()
 if not _conn_str or _conn_str == "__unset__":
-    print("⚠  lakebase_connection_string is empty or unset — skipping seed data.")
-    print("   Set the widget value to run seed data against Lakebase.")
+    print("⚠  lakebase_connection_string is empty or unset — skipping seed data")
+    print("   AND wal2delta registration reconciliation.")
+    print("   Set the widget value to run Postgres steps against Lakebase.")
 else:
     import psycopg2  # available on Databricks Runtime
 
@@ -111,12 +156,37 @@ else:
     try:
         conn.autocommit = True
         with conn.cursor() as cur:
-            if target == "dev":
-                print("Executing dev seed data (target=dev)...")
-                cur.execute(SEED_DEV_SQL)
-                print("✓ Dev seed data applied")
+            # Guard: on a first deploy the app schema does not exist yet (the app
+            # applies its migrations on startup, after bootstrap). Skip Postgres
+            # steps gracefully — re-run bootstrap after the app has started.
+            cur.execute("SELECT to_regnamespace('app') IS NOT NULL")
+            app_schema_ready = cur.fetchone()[0]
+
+            if not app_schema_ready:
+                print(
+                    "⚠  app schema not present yet (app migrations have not run) — "
+                    "skipping seed data + wal2delta reconciliation."
+                )
+                print("   Re-run bootstrap after the app has started at least once.")
             else:
-                print(f"  Skipping seed data (target={target})")
+                if target == "dev":
+                    print("Executing dev seed data (target=dev)...")
+                    cur.execute(SEED_DEV_SQL)
+                    print("✓ Dev seed data applied")
+                else:
+                    print(f"  Skipping seed data (target={target})")
+
+                # Reconciliation runs for ALL targets (registration maintenance).
+                print("Reconciling wal2delta.tables with the app schema...")
+                cur.execute(RECONCILE_WAL2DELTA_SQL)
+                registered = cur.rowcount
+                cur.execute(RESET_STALE_SKIPPED_SQL)
+                reset = cur.rowcount
+                print(
+                    f"✓ wal2delta reconciliation complete: "
+                    f"{registered} table(s) registered PENDING, "
+                    f"{reset} stale SKIPPED entr(ies) reset to PENDING"
+                )
     finally:
         conn.close()
 

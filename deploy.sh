@@ -404,12 +404,70 @@ for db in dbs:
 }
 
 # --------------------------------------------------------------------------- #
+# build_lakebase_conn_str — resolve a Postgres connection string for a branch
+# Echoes the connection string, or "__unset__" if credentials cannot be
+# resolved. Uses the deployer's OAuth token (same pattern as run_configure_app_spn).
+# --------------------------------------------------------------------------- #
+build_lakebase_conn_str() {
+  local branch_id="$1"
+  [[ -z "${LAKEBASE_PROJECT_ID}" || -z "${branch_id}" ]] && { echo "__unset__"; return 0; }
+
+  local _token _host _user _user_enc _token_enc
+  _token=$(databricks auth token --output json 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null) || _token=""
+  _host=$(databricks postgres list-endpoints \
+    "projects/${LAKEBASE_PROJECT_ID}/branches/${branch_id}" \
+    --output json 2>/dev/null \
+    | python3 -c "
+import sys, json
+eps = json.load(sys.stdin)
+if isinstance(eps, dict): eps = eps.get('endpoints', eps.get('items', []))
+print(eps[0]['status']['hosts']['host'] if eps else '')
+" 2>/dev/null) || _host=""
+  _user=$(databricks auth describe --output json 2>/dev/null \
+    | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('username', '') or d.get('details', {}).get('userName', '') or d.get('userName', '') or d.get('user', {}).get('name', ''))
+" 2>/dev/null) || _user=""
+
+  if [[ -n "${_token}" && -n "${_host}" && -n "${_user}" ]]; then
+    _user_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_user}")
+    _token_enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${_token}")
+    echo "postgresql://${_user_enc}:${_token_enc}@${_host}:5432/databricks_postgres?sslmode=require"
+  else
+    echo "__unset__"
+  fi
+}
+
+# --------------------------------------------------------------------------- #
 # run_platform_bootstrap
 # --------------------------------------------------------------------------- #
 run_platform_bootstrap() {
   local bundle_dir="${SCRIPT_DIR}/${INFRA_BUNDLE}"
   log "Running platform bootstrap (target: ${TARGET})"
-  (cd_bundle "${bundle_dir}" && databricks bundle run "${PLATFORM_BOOTSTRAP_JOB}" --target "${TARGET}") || \
+
+  # Resolve a Lakebase connection string so the bootstrap notebook can run its
+  # Postgres steps: the dev seed AND the wal2delta registration reconciliation.
+  # The reconciliation must run as this elevated deployer identity (a member of
+  # databricks_superuser) because the app runtime SPN cannot write the
+  # cloud_admin-owned wal2delta.tables control table. The notebook skips Postgres
+  # steps gracefully when this is "__unset__" or the app schema is not present yet.
+  local branch_id="production"
+  if [[ "${TARGET}" == "dev" ]] && [[ -n "${USER_HANDLE}" ]]; then
+    branch_id="dev-${USER_HANDLE//_/-}"
+  fi
+  local lb_conn_str
+  lb_conn_str=$(build_lakebase_conn_str "${branch_id}")
+  if [[ "${lb_conn_str}" == "__unset__" ]]; then
+    warn "Lakebase connection string unresolved — bootstrap will skip Postgres steps (seed + wal2delta reconciliation)."
+  else
+    log "Lakebase connection resolved — bootstrap will run seed + wal2delta reconciliation"
+  fi
+
+  (cd_bundle "${bundle_dir}" && databricks bundle run "${PLATFORM_BOOTSTRAP_JOB}" \
+    --target "${TARGET}" \
+    --params "lakebase_connection_string=${lb_conn_str}") || \
     fail "Platform bootstrap failed. Check the Databricks Jobs UI."
   ok "Platform bootstrap complete"
 }
