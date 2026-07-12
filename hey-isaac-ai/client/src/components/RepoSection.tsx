@@ -42,42 +42,36 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <h3 style={{
           margin: 0, fontSize: 13, fontWeight: 600, letterSpacing: '0.8px',
-          textTransform: 'uppercase', color: 'var(--db-text-muted)',
+          textTransform: 'uppercase', color: 'var(--muted-foreground)',
         }}>
           Repositories
         </h3>
-        <div style={{ flex: 1, height: 1, background: 'var(--db-border)' }} />
-        <Button
-          onClick={() => setShowRegister(true)}
-          style={{
-            background: 'var(--db-navy)', color: '#fff', border: 'none',
-            fontWeight: 600, fontSize: 12, padding: '4px 12px',
-          }}
-        >
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <Button size="sm" onClick={() => setShowRegister(true)}>
           + Add Repo
         </Button>
       </div>
 
       {error && (
-        <Alert style={{ marginBottom: 16, borderColor: 'var(--db-red)' }}>
+        <Alert variant="destructive" style={{ marginBottom: 16 }}>
           <AlertTitle>Could not load repositories</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {loading ? (
-        <div style={{ color: 'var(--db-text-muted)', fontSize: 13, padding: '12px 0' }}>
+        <div style={{ color: 'var(--muted-foreground)', fontSize: 13, padding: '12px 0' }}>
           Loading repositories…
         </div>
       ) : repos.length === 0 ? (
         <div style={{
-          border: '1px dashed var(--db-border)', borderRadius: 8,
-          padding: 24, textAlign: 'center', color: 'var(--db-text-muted)', fontSize: 13,
+          border: '1px dashed var(--border)', borderRadius: 'var(--radius)',
+          padding: 24, textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13,
         }}>
           No repositories registered yet.{' '}
           <button
             onClick={() => setShowRegister(true)}
-            style={{ color: 'var(--db-red)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+            style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
           >
             Add one
           </button>
@@ -86,11 +80,11 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {repos.map(repo => (
-            <div key={repo.url} className="retro-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div key={repo.url} style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 16 }}>🐙</span>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--db-navy)' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--card-foreground)' }}>
                     {repo.url.replace('https://github.com/', '')}
                   </div>
                   <RelayStatusBadge lastDelivery={repo.last_delivery} />
@@ -115,12 +109,12 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
                       setResyncErrors(prev => ({ ...prev, [repo.url]: e instanceof Error ? e.message : String(e) }));
                     }
                   }}
-                  style={{ background: 'none', border: '1px solid var(--db-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--db-text-muted)' }}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--muted-foreground)' }}
                 >
                   Re-sync
                 </button>
                 {resyncErrors[repo.url] && (
-                  <div style={{ color: 'var(--db-red)', fontSize: 11 }}>{resyncErrors[repo.url]}</div>
+                  <div style={{ color: 'var(--destructive)', fontSize: 11 }}>{resyncErrors[repo.url]}</div>
                 )}
               </div>
             </div>

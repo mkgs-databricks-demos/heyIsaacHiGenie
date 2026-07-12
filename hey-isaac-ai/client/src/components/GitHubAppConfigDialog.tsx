@@ -81,13 +81,13 @@ export default function GitHubAppConfigDialog({ open, onOpenChange, onConfigured
         </DialogHeader>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--db-text-muted)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
             Don&apos;t have a GitHub App yet?{' '}
             <a
               href="https://github.com/settings/apps/new"
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--db-red)' }}
+              style={{ color: 'var(--primary)' }}
             >
               Create one at github.com/settings/apps/new
             </a>
@@ -169,7 +169,7 @@ export default function GitHubAppConfigDialog({ open, onOpenChange, onConfigured
                     placeholder="https://your-app.databricksapps.com"
                   />
                 </div>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--db-text-muted)' }}>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted-foreground)' }}>
                   Relay SP credentials are configured via the Deploy Setup job.
                 </p>
               </div>
@@ -180,9 +180,8 @@ export default function GitHubAppConfigDialog({ open, onOpenChange, onConfigured
             <div
               style={{
                 fontSize: 13,
-                color: 'var(--db-green, #1b8a5a)',
-                background: 'rgba(27,138,90,0.08)',
-                border: '1px solid rgba(27,138,90,0.3)',
+                color: 'var(--success)',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
                 padding: '8px 12px',
               }}
@@ -197,9 +196,8 @@ export default function GitHubAppConfigDialog({ open, onOpenChange, onConfigured
             <div
               style={{
                 fontSize: 13,
-                color: 'var(--db-red)',
-                background: 'rgba(255,54,33,0.08)',
-                border: '1px solid rgba(255,54,33,0.3)',
+                color: 'var(--destructive)',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
                 padding: '8px 12px',
               }}
@@ -213,11 +211,7 @@ export default function GitHubAppConfigDialog({ open, onOpenChange, onConfigured
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!canSave}
-            style={{ background: 'var(--db-red)', color: '#fff', border: 'none' }}
-          >
+          <Button onClick={handleSave} disabled={!canSave}>
             {feedback.kind === 'saving' ? 'Saving…' : 'Save'}
           </Button>
         </DialogFooter>

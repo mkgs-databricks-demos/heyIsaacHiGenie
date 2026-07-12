@@ -5,7 +5,7 @@ interface RelayStatusBadgeProps {
 export default function RelayStatusBadge({ lastDelivery }: RelayStatusBadgeProps) {
   if (!lastDelivery) {
     return (
-      <span style={{ fontSize: 11, color: 'var(--db-gold)', fontWeight: 600 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600 }}>
         ● Registered · no deliveries yet
       </span>
     );
@@ -18,7 +18,7 @@ export default function RelayStatusBadge({ lastDelivery }: RelayStatusBadgeProps
   const healthy = ago < 24 * 60 * 60 * 1_000;
 
   return (
-    <span style={{ fontSize: 11, color: healthy ? 'var(--db-green, #22c55e)' : 'var(--db-text-muted)', fontWeight: 600 }}>
+    <span style={{ fontSize: 11, color: healthy ? 'var(--success)' : 'var(--muted-foreground)', fontWeight: 600 }}>
       {healthy ? '✓' : '○'} Relay active · last delivery {label}
     </span>
   );

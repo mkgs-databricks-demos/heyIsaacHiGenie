@@ -69,20 +69,17 @@ export default function ProjectView({
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <span style={{ fontSize: 28 }}>🪔</span>
-          <h2
-            className="display-font"
-            style={{ margin: 0, fontSize: 26, color: 'var(--db-navy)' }}
-          >
+          <h2 style={{ margin: 0, fontSize: 26 }}>
             {PROJECT_NAME}
           </h2>
         </div>
-        <p style={{ margin: 0, color: 'var(--db-text-muted)', fontSize: 14, lineHeight: 1.6 }}>
+        <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 14, lineHeight: 1.6 }}>
           {PROJECT_DESCRIPTION}
         </p>
       </div>
 
       {error && (
-        <Alert style={{ marginBottom: 24, borderColor: 'var(--db-red)' }}>
+        <Alert variant="destructive" style={{ marginBottom: 24 }}>
           <AlertTitle>Failed to start thread</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -104,19 +101,18 @@ export default function ProjectView({
             fontWeight: 600,
             letterSpacing: '0.8px',
             textTransform: 'uppercase',
-            color: 'var(--db-text-muted)',
+            color: 'var(--muted-foreground)',
           }}
         >
           Agents
         </h3>
-        <div style={{ flex: 1, height: 1, background: 'var(--db-border)' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
       {/* Agent cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {agents.map(agent => (
-          <div key={agent.id} className="retro-card">
-            <Card style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
+            <Card key={agent.id}>
               <CardHeader
                 style={{
                   display: 'flex',
@@ -139,30 +135,21 @@ export default function ProjectView({
                       justifyContent: 'center',
                       fontSize: 20,
                       fontWeight: 700,
-                      color: '#fff',
+                      color: 'var(--primary-foreground)',
                       flexShrink: 0,
-                      boxShadow: `0 2px 8px ${agent.color}66`,
                     }}
                   >
                     {agent.label[0]}
                   </div>
                   <div>
-                    <CardTitle className="display-font" style={{ fontSize: 18, marginBottom: 4 }}>
+                    <CardTitle style={{ fontSize: 18, marginBottom: 4 }}>
                       {agent.label}
                     </CardTitle>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Badge
-                        style={{
-                          background: 'rgba(244,161,0,0.15)',
-                          color: 'var(--db-gold)',
-                          border: '1px solid var(--db-gold)',
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      >
-                        ✦ granted
+                      <Badge variant="secondary" style={{ fontSize: 11 }}>
+                        granted
                       </Badge>
-                      <span style={{ fontSize: 12, color: 'var(--db-text-muted)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
                         @{agent.persona}
                       </span>
                     </div>
@@ -172,23 +159,16 @@ export default function ProjectView({
                 <Button
                   onClick={() => handleStartThread(agent)}
                   disabled={startingFor === agent.id}
-                  style={{
-                    background: 'var(--db-red)',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
                 >
                   {startingFor === agent.id ? 'Starting…' : 'Start a thread'}
                 </Button>
               </CardHeader>
               <CardContent style={{ paddingTop: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--db-text-muted)', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
                   Responds to messages in threads. Tag with{' '}
                   <code
                     style={{
-                      background: 'var(--db-cream)',
+                      background: 'var(--muted)',
                       padding: '1px 5px',
                       borderRadius: 4,
                       fontSize: 12,
@@ -200,7 +180,6 @@ export default function ProjectView({
                 </p>
               </CardContent>
             </Card>
-          </div>
         ))}
       </div>
 
@@ -222,12 +201,12 @@ export default function ProjectView({
                 fontWeight: 600,
                 letterSpacing: '0.8px',
                 textTransform: 'uppercase',
-                color: 'var(--db-text-muted)',
+                color: 'var(--muted-foreground)',
               }}
             >
               GitHub App Settings
             </h3>
-            <div style={{ flex: 1, height: 1, background: 'var(--db-border)' }} />
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
           <GitHubAppStatusCard status={githubStatus} onRefresh={onRefreshGitHubStatus} />
