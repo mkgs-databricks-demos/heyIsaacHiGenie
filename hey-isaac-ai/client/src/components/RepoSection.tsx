@@ -6,10 +6,16 @@ import RegisterRepoDialog from './RegisterRepoDialog';
 
 interface RepoSectionProps {
   projectId: string;
-  personaToken: string;
+  // Vestigial for auth (these routes are OBO-authenticated) but forwarded when
+  // present. Null in the empty-roster case where no persona token was minted.
+  personaToken: string | null;
 }
 
 export default function RepoSection({ projectId, personaToken }: RepoSectionProps) {
+  const authHeader: Record<string, string> = personaToken
+    ? { Authorization: `Bearer ${personaToken}` }
+    : {};
+
   const [repos, setRepos] = useState<RepoStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +27,7 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
     setError(null);
     try {
       const resp = await fetch(`/api/repos/status?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${personaToken}` },
+        headers: authHeader,
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as { repos: RepoStatus[] };
@@ -96,7 +102,7 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
                     try {
                       const resp = await fetch('/api/repos/register', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
+                        headers: { 'Content-Type': 'application/json', ...authHeader },
                         body: JSON.stringify({ project_id: projectId, repo: repo.url.replace('https://github.com/', '') }),
                       });
                       if (!resp.ok) {

@@ -28,13 +28,19 @@ export interface Project {
   description: string | null;
 }
 
-export interface ProjectContext {
+export interface ProjectMembership {
+  project_id: string;
+  user_id: string;
+  role: string;
+}
+
+// Response of the OBO-authenticated GET /api/bootstrap read: live project
+// context + agent roster, used to seed the shell before any persona token is
+// minted.
+export interface BootstrapResponse {
   project: Project;
-  membership: {
-    project_id: string;
-    user_id: string;
-    role: string;
-  };
+  membership: ProjectMembership;
+  roster: RosterAgent[];
 }
 
 export interface Thread {

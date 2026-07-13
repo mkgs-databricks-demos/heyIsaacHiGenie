@@ -8,6 +8,7 @@ import { wellKnownRouter } from './routes/well-known.js';
 import { githubOAuthRouter } from './routes/github-oauth.js';
 import { githubWebhookRouter } from './routes/github-webhook.js';
 import { reposRouter } from './routes/repos.js';
+import { bootstrapRouter } from './routes/bootstrap.js';
 import { githubReposRouter } from './routes/github-repos.js';
 import { githubAppRouter } from './routes/github-app.js';
 import type { Db } from './db/index.js';
@@ -66,6 +67,11 @@ const AppKit = createApp({
 
       // Persona token issuer — agents call this to get a signed persona JWT
       app.use('/token', personaTokenRouter(db));
+
+      // Bootstrap read — human-OBO-authenticated project context + roster so the
+      // client can discover the primary agent (live) before minting a persona
+      // token. Breaks the persona-token/roster chicken-and-egg.
+      app.use('/api/bootstrap', bootstrapRouter(db));
 
       // GitHub OAuth flow — write-lane per-user OBO auth for external agents
       app.use('/auth/github', githubOAuthRouter(db));

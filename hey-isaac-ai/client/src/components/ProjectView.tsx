@@ -19,7 +19,7 @@ import RepoSection from './RepoSection';
 interface ProjectViewProps {
   project: Project;
   agents: AgentConfig[];
-  personaToken: string;
+  personaToken: string | null;
   githubStatus: GitHubStatus | null;
   onRefreshGitHubStatus: () => void;
   onStartThread: (thread: Thread, agentId: string) => void;
@@ -37,13 +37,19 @@ export default function ProjectView({
   const [error, setError] = useState<string | null>(null);
 
   async function handleStartThread(agent: AgentConfig) {
+    if (!personaToken) {
+      setError('No persona token available — cannot start a thread.');
+      return;
+    }
     setStartingFor(agent.id);
     setError(null);
     try {
       const title = `Chat with ${agent.label} — ${new Date().toLocaleDateString()}`;
+      // Thread the SELECTED agent's real live id into the request so thread
+      // creation references live roster data, not an implicit agent.
       const thread = await callMcp<Thread>(
         'start_thread',
-        { project_id: project.id, title },
+        { project_id: project.id, title, agent_id: agent.id },
         personaToken,
       );
       onStartThread(thread, agent.id);
@@ -165,7 +171,7 @@ export default function ProjectView({
 
                 <Button
                   onClick={() => handleStartThread(agent)}
-                  disabled={startingFor === agent.id}
+                  disabled={startingFor === agent.id || !personaToken}
                 >
                   {startingFor === agent.id ? 'Starting…' : 'Start a thread'}
                 </Button>
