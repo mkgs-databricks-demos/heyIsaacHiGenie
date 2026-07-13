@@ -33,8 +33,9 @@ export default function Sidebar({
     <aside
       style={{
         width: 220,
-        background: 'var(--db-navy)',
-        color: 'var(--db-cream)',
+        background: 'var(--sidebar)',
+        color: 'var(--sidebar-foreground)',
+        borderRight: '1px solid var(--sidebar-border)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -44,21 +45,20 @@ export default function Sidebar({
       {/* App name */}
       <div style={{ padding: '20px 16px 12px' }}>
         <div
-          className="display-font"
           style={{
             fontSize: 16,
-            color: 'var(--db-cream)',
-            letterSpacing: '0.3px',
+            fontWeight: 600,
+            color: 'var(--sidebar-foreground)',
           }}
         >
-          Hi Genie <span className="sparkle">✦</span>
+          Hi Genie
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(253,246,236,0.5)', marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>
           multi-agent coordination
         </div>
       </div>
 
-      <Separator style={{ background: 'rgba(253,246,236,0.12)', margin: '0 12px' }} />
+      <Separator style={{ margin: '0 12px' }} />
 
       {/* Navigation */}
       <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
@@ -72,10 +72,12 @@ export default function Sidebar({
             gap: 8,
             width: '100%',
             padding: '8px 16px',
-            background: isProjectActive ? 'rgba(255,54,33,0.2)' : 'transparent',
+            background: isProjectActive ? 'var(--sidebar-accent)' : 'transparent',
             border: 'none',
-            borderLeft: isProjectActive ? '3px solid var(--db-red)' : '3px solid transparent',
-            color: 'var(--db-cream)',
+            borderLeft: isProjectActive
+              ? '3px solid var(--sidebar-primary)'
+              : '3px solid transparent',
+            color: 'var(--sidebar-foreground)',
             fontSize: 13,
             fontWeight: 500,
             cursor: 'pointer',
@@ -98,7 +100,7 @@ export default function Sidebar({
                   gap: 8,
                   padding: '6px 16px 6px 24px',
                   fontSize: 12,
-                  color: 'rgba(253,246,236,0.7)',
+                  color: 'var(--muted-foreground)',
                   fontWeight: 500,
                   letterSpacing: '0.5px',
                   textTransform: 'uppercase',
@@ -115,7 +117,7 @@ export default function Sidebar({
                     justifyContent: 'center',
                     fontSize: 10,
                     fontWeight: 700,
-                    color: '#fff',
+                    color: 'var(--primary-foreground)',
                     flexShrink: 0,
                   }}
                 >
@@ -129,7 +131,7 @@ export default function Sidebar({
                   style={{
                     padding: '4px 16px 4px 40px',
                     fontSize: 12,
-                    color: 'rgba(253,246,236,0.35)',
+                    color: 'var(--muted-foreground)',
                     fontStyle: 'italic',
                   }}
                 >
@@ -149,14 +151,14 @@ export default function Sidebar({
                       display: 'block',
                       width: '100%',
                       padding: '5px 16px 5px 40px',
-                      background: isActive ? 'rgba(255,54,33,0.2)' : 'transparent',
+                      background: isActive ? 'var(--sidebar-accent)' : 'transparent',
                       borderLeft: isActive
-                        ? '3px solid var(--db-gold)'
+                        ? '3px solid var(--sidebar-primary)'
                         : '3px solid transparent',
                       border: 'none',
                       color: isActive
-                        ? 'var(--db-cream)'
-                        : 'rgba(253,246,236,0.6)',
+                        ? 'var(--sidebar-accent-foreground)'
+                        : 'var(--muted-foreground)',
                       fontSize: 12,
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -177,7 +179,7 @@ export default function Sidebar({
       {/* User footer */}
       {identity && (
         <>
-          <Separator style={{ background: 'rgba(253,246,236,0.12)', margin: '0 12px' }} />
+          <Separator style={{ margin: '0 12px' }} />
           <div
             style={{
               display: 'flex',
@@ -187,21 +189,12 @@ export default function Sidebar({
             }}
           >
             <Avatar style={{ width: 28, height: 28 }}>
-              <AvatarFallback
-                style={{
-                  background: 'rgba(255,54,33,0.3)',
-                  color: 'var(--db-cream)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                {initials(identity.email)}
-              </AvatarFallback>
+              <AvatarFallback>{initials(identity.email)}</AvatarFallback>
             </Avatar>
             <span
               style={{
                 fontSize: 11,
-                color: 'rgba(253,246,236,0.6)',
+                color: 'var(--muted-foreground)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

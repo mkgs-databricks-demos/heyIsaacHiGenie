@@ -23,9 +23,9 @@ interface GitHubAppStatusCardProps {
 }
 
 const STATE_META = {
-  connected: { color: '#1b8a5a', label: 'GitHub App: ✓ Connected' },
-  partial: { color: 'var(--db-gold)', label: 'GitHub App: ⚠ Partially configured' },
-  broken: { color: 'var(--db-red)', label: 'GitHub App: ✗ Not configured' },
+  connected: { color: 'var(--success)', label: 'GitHub App: ✓ Connected' },
+  partial: { color: 'var(--warning)', label: 'GitHub App: ⚠ Partially configured' },
+  broken: { color: 'var(--destructive)', label: 'GitHub App: ✗ Not configured' },
 } as const;
 
 export default function GitHubAppStatusCard({ status, onRefresh }: GitHubAppStatusCardProps) {
@@ -37,31 +37,24 @@ export default function GitHubAppStatusCard({ status, onRefresh }: GitHubAppStat
   const missing = missingFields(status);
 
   return (
-    <div className="retro-card" style={{ marginBottom: 24 }}>
-      <Card style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
+    <div style={{ marginBottom: 24 }}>
+      <Card>
         <CardHeader style={{ paddingBottom: 8 }}>
-          <CardTitle className="display-font" style={{ fontSize: 16, color: meta.color }}>
+          <CardTitle style={{ fontSize: 16, color: meta.color }}>
             {meta.label}
           </CardTitle>
         </CardHeader>
         <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {missing.length > 0 && (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--db-text-muted)' }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--muted-foreground)' }}>
               Missing: {missing.join(', ')}
             </p>
           )}
           <div style={{ display: 'flex', gap: 10 }}>
-            <Button
-              variant="outline"
-              onClick={() => setRotateOpen(true)}
-              style={{ fontSize: 13 }}
-            >
+            <Button variant="outline" onClick={() => setRotateOpen(true)}>
               Rotate Private Key
             </Button>
-            <Button
-              onClick={() => setConfigOpen(true)}
-              style={{ background: 'var(--db-red)', color: '#fff', border: 'none', fontSize: 13 }}
-            >
+            <Button onClick={() => setConfigOpen(true)}>
               Reconfigure
             </Button>
           </div>
@@ -131,12 +124,12 @@ function RotateKeyDialog({
         </div>
 
         {feedback.kind === 'success' && (
-          <div style={{ marginTop: 12, fontSize: 13, color: '#1b8a5a' }}>
+          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--success)' }}>
             ✓ Key saved. Redeploy the app for changes to take effect.
           </div>
         )}
         {feedback.kind === 'error' && (
-          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--db-red)' }}>⚠ {feedback.message}</div>
+          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--destructive)' }}>⚠ {feedback.message}</div>
         )}
 
         <DialogFooter style={{ marginTop: 16 }}>
@@ -146,7 +139,6 @@ function RotateKeyDialog({
           <Button
             onClick={handleRotate}
             disabled={privateKey.trim().length === 0 || feedback.kind === 'saving'}
-            style={{ background: 'var(--db-red)', color: '#fff', border: 'none' }}
           >
             {feedback.kind === 'saving' ? 'Saving…' : 'Rotate Key'}
           </Button>

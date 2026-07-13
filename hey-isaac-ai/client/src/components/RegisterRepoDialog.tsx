@@ -76,7 +76,9 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
   };
   const dialogStyle: React.CSSProperties = {
-    background: '#fff', borderRadius: 12, padding: 28, width: 480, maxWidth: '95vw',
+    background: 'var(--popover)', color: 'var(--popover-foreground)',
+    borderRadius: 'var(--radius)', padding: 28, width: 480, maxWidth: '95vw',
+    border: '1px solid var(--border)',
     boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
   };
 
@@ -84,17 +86,17 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
     <div style={overlayStyle} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 className="display-font" style={{ margin: 0, fontSize: 20, color: 'var(--db-navy)' }}>
+          <h3 style={{ margin: 0, fontSize: 20 }}>
             Register Repository
           </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--db-text-muted)' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--muted-foreground)' }}>
             ×
           </button>
         </div>
 
         {step === 'pick' && (
           <div>
-            <p style={{ fontSize: 13, color: 'var(--db-text-muted)', marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 14 }}>
               Select a GitHub repository to register with this project. The Hi-Genie App must be installed on it.
             </p>
             <input
@@ -107,11 +109,12 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
               }}
               style={{
                 width: '100%', padding: '8px 12px', borderRadius: 6,
-                border: '1px solid var(--db-border)', fontSize: 13, marginBottom: 12, boxSizing: 'border-box',
+                border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--foreground)',
+                fontSize: 13, marginBottom: 12, boxSizing: 'border-box',
               }}
             />
-            {step === 'pick' && errorMsg && <div style={{ color: 'var(--db-red)', fontSize: 12, marginBottom: 8 }}>{errorMsg}</div>}
-            {loadingRepos && <div style={{ fontSize: 12, color: 'var(--db-text-muted)' }}>Searching…</div>}
+            {step === 'pick' && errorMsg && <div style={{ color: 'var(--destructive)', fontSize: 12, marginBottom: 8 }}>{errorMsg}</div>}
+            {loadingRepos && <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Searching…</div>}
             <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {repos.map((r) => (
                 <button
@@ -122,12 +125,12 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
                   }}
                   style={{
                     textAlign: 'left', padding: '10px 14px', borderRadius: 8,
-                    border: '1px solid var(--db-border)', cursor: 'pointer', background: '#fafafa',
-                    fontSize: 13,
+                    border: '1px solid var(--border)', cursor: 'pointer', background: 'var(--muted)',
+                    color: 'var(--foreground)', fontSize: 13,
                   }}
                 >
                   <strong>{r.full_name}</strong>
-                  {r.description && <span style={{ color: 'var(--db-text-muted)', marginLeft: 6 }}>{r.description}</span>}
+                  {r.description && <span style={{ color: 'var(--muted-foreground)', marginLeft: 6 }}>{r.description}</span>}
                 </button>
               ))}
             </div>
@@ -139,14 +142,14 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
             <p style={{ fontSize: 13, marginBottom: 16 }}>
               Registering <strong>{selectedRepo}</strong>. The following changes will be made:
             </p>
-            <pre style={{ background: 'var(--db-cream)', padding: 12, borderRadius: 6, fontSize: 11, overflow: 'auto' }}>
+            <pre style={{ background: 'var(--muted)', padding: 12, borderRadius: 6, fontSize: 11, overflow: 'auto' }}>
               {JSON.stringify(preflightData, null, 2)}
             </pre>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <Button onClick={register} style={{ background: 'var(--db-red)', color: '#fff', border: 'none', fontWeight: 600 }}>
+              <Button onClick={register}>
                 Confirm & Register
               </Button>
-              <Button onClick={onClose} style={{ background: 'none', border: '1px solid var(--db-border)' }}>
+              <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
             </div>
@@ -156,32 +159,32 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
         {step === 'registering' && (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
-            <p style={{ color: 'var(--db-text-muted)', fontSize: 13 }}>Registering {selectedRepo}…</p>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>Registering {selectedRepo}…</p>
           </div>
         )}
 
         {step === 'done' && registerResult && (
           <div>
             <div style={{ textAlign: 'center', fontSize: 32, marginBottom: 12 }}>✅</div>
-            <p style={{ textAlign: 'center', fontWeight: 600, color: 'var(--db-navy)', marginBottom: 16 }}>
+            <p style={{ textAlign: 'center', fontWeight: 600, color: 'var(--foreground)', marginBottom: 16 }}>
               {selectedRepo} registered successfully
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {registerResult.steps.map((s, i) => (
                 <div key={i} style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                   <span>{s.status === 'ok' ? '✓' : '✗'}</span>
-                  <span style={{ color: s.status === 'ok' ? 'var(--db-navy)' : 'var(--db-red)' }}>{s.name}</span>
+                  <span style={{ color: s.status === 'ok' ? 'var(--foreground)' : 'var(--destructive)' }}>{s.name}</span>
                 </div>
               ))}
             </div>
-            <Button onClick={onSuccess} style={{ background: 'var(--db-red)', color: '#fff', border: 'none', fontWeight: 600, marginTop: 20, width: '100%' }}>
+            <Button onClick={onSuccess} style={{ marginTop: 20, width: '100%' }}>
               Done
             </Button>
           </div>
         )}
 
         {step === 'error' && (
-          <Alert style={{ borderColor: 'var(--db-red)' }}>
+          <Alert variant="destructive">
             <AlertTitle>Registration failed</AlertTitle>
             <AlertDescription>{errorMsg ?? registerResult?.error ?? 'Unknown error'}</AlertDescription>
           </Alert>

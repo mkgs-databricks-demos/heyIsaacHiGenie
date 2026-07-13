@@ -15,7 +15,7 @@ const AGENTS: AgentConfig[] = [
     id: '00000000-0000-0000-0000-000000000002',
     persona: 'genie',
     label: 'Genie',
-    color: '#FF3621',
+    color: 'var(--primary)',
   },
 ];
 
@@ -115,11 +115,11 @@ export default function App() {
       {initError && (
         <div
           style={{
-            background: 'rgba(255,54,33,0.08)',
-            borderBottom: '1px solid rgba(255,54,33,0.3)',
+            background: 'var(--destructive)',
+            borderBottom: '1px solid var(--destructive)',
             padding: '8px 24px',
             fontSize: 13,
-            color: 'var(--db-red)',
+            color: 'var(--destructive-foreground)',
           }}
         >
           ⚠ {initError}
@@ -154,7 +154,7 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-                color: 'var(--db-text-muted)',
+                color: 'var(--muted-foreground)',
                 fontSize: 14,
               }}
             >

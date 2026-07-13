@@ -22,8 +22,8 @@ export default function Header({ identity }: HeaderProps) {
         justifyContent: 'space-between',
         padding: '0 24px',
         height: 56,
-        background: 'var(--db-surface)',
-        borderBottom: '2px solid var(--db-border)',
+        background: 'var(--background)',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
         zIndex: 10,
       }}
@@ -31,7 +31,6 @@ export default function Header({ identity }: HeaderProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 22 }}>🪔</span>
         <h1
-          className="display-font"
           style={{
             margin: 0,
             fontSize: 20,
@@ -39,10 +38,7 @@ export default function Header({ identity }: HeaderProps) {
             whiteSpace: 'nowrap',
           }}
         >
-          <span style={{ color: 'var(--db-navy)' }}>Hey Isaac?</span>
-          {'  '}
-          <span style={{ color: 'var(--db-red)' }}>Hi Genie!</span>
-          <span className="sparkle"> ✦</span>
+          Hey Isaac? Hi Genie!
         </h1>
       </div>
 
@@ -51,7 +47,7 @@ export default function Header({ identity }: HeaderProps) {
           <span
             style={{
               fontSize: 13,
-              color: 'var(--db-text-muted)',
+              color: 'var(--muted-foreground)',
               maxWidth: 200,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -61,16 +57,7 @@ export default function Header({ identity }: HeaderProps) {
             {identity.email}
           </span>
           <Avatar>
-            <AvatarFallback
-              style={{
-                background: 'var(--db-navy)',
-                color: 'var(--db-cream)',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              {initials(identity.email)}
-            </AvatarFallback>
+            <AvatarFallback>{initials(identity.email)}</AvatarFallback>
           </Avatar>
         </div>
       )}

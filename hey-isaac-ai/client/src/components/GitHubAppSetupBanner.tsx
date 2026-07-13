@@ -33,8 +33,7 @@ export default function GitHubAppSetupBanner({ status, onConfigured }: GitHubApp
   const isBroken = state === 'broken';
   const missing = missingFields(status);
 
-  const accent = isBroken ? 'var(--db-red)' : 'var(--db-gold)';
-  const bg = isBroken ? 'rgba(255,54,33,0.08)' : 'rgba(244,161,0,0.10)';
+  const accent = isBroken ? 'var(--destructive)' : 'var(--warning)';
 
   function handleDismiss() {
     try {
@@ -49,8 +48,8 @@ export default function GitHubAppSetupBanner({ status, onConfigured }: GitHubApp
     <>
       <div
         style={{
-          background: bg,
-          borderBottom: `1px solid ${accent}`,
+          background: 'var(--muted)',
+          borderBottom: '1px solid var(--border)',
           padding: '12px 24px',
           display: 'flex',
           alignItems: 'center',
@@ -65,14 +64,14 @@ export default function GitHubAppSetupBanner({ status, onConfigured }: GitHubApp
               : 'GitHub App is partially configured.'}
           </strong>
           {missing.length > 0 && (
-            <span style={{ color: 'var(--db-text-muted)', marginLeft: 6 }}>
+            <span style={{ color: 'var(--muted-foreground)', marginLeft: 6 }}>
               Missing: {missing.join(', ')}.
             </span>
           )}
         </div>
         <Button
+          variant={isBroken ? 'destructive' : 'default'}
           onClick={() => setConfigOpen(true)}
-          style={{ background: accent, color: '#fff', border: 'none', fontSize: 13, fontWeight: 600 }}
         >
           Configure GitHub App
         </Button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, ScrollArea, Textarea, Alert, AlertDescription } from '@databricks/appkit-ui/react';
+import { Badge, Button, ScrollArea, Textarea, Alert, AlertDescription } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
 import MessageBubble from './MessageBubble';
 import type { Message } from '../lib/types';
@@ -99,7 +99,7 @@ export default function ChatView({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: 'var(--db-cream)',
+        background: 'var(--background)',
       }}
     >
       {/* Thread header */}
@@ -109,8 +109,8 @@ export default function ChatView({
           alignItems: 'center',
           gap: 12,
           padding: '12px 20px',
-          background: 'var(--db-surface)',
-          borderBottom: '2px solid var(--db-border)',
+          background: 'var(--card)',
+          borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}
       >
@@ -118,21 +118,14 @@ export default function ChatView({
           variant="outline"
           onClick={onBack}
           aria-label="Back to project"
-          style={{
-            padding: '4px 10px',
-            fontSize: 13,
-            borderColor: 'var(--db-border)',
-            color: 'var(--db-navy)',
-          }}
+          style={{ padding: '4px 10px', fontSize: 13 }}
         >
           ← Back
         </Button>
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <div
-            className="display-font"
             style={{
               fontSize: 16,
-              color: 'var(--db-navy)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -141,20 +134,9 @@ export default function ChatView({
             {threadTitle}
           </div>
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            background: 'rgba(244,161,0,0.15)',
-            color: 'var(--db-gold)',
-            border: '1px solid var(--db-gold)',
-            borderRadius: 12,
-            padding: '2px 8px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <Badge variant="secondary" style={{ whiteSpace: 'nowrap' }}>
           🪔 genie
-        </div>
+        </Badge>
       </div>
 
       {/* Message list */}
@@ -168,7 +150,7 @@ export default function ChatView({
               justifyContent: 'center',
               height: '100%',
               gap: 12,
-              color: 'var(--db-text-muted)',
+              color: 'var(--muted-foreground)',
             }}
           >
             <span style={{ fontSize: 40 }}>🪔</span>
@@ -187,9 +169,9 @@ export default function ChatView({
       {/* Error banner */}
       {error && (
         <Alert
+          variant="destructive"
           style={{
             margin: '0 20px 8px',
-            borderColor: 'var(--db-red)',
             flexShrink: 0,
           }}
         >
@@ -203,8 +185,8 @@ export default function ChatView({
           display: 'flex',
           gap: 10,
           padding: '12px 20px',
-          background: 'var(--db-surface)',
-          borderTop: '2px solid var(--db-border)',
+          background: 'var(--card)',
+          borderTop: '1px solid var(--border)',
           flexShrink: 0,
         }}
       >
@@ -219,23 +201,13 @@ export default function ChatView({
             flex: 1,
             resize: 'none',
             fontSize: 14,
-            borderColor: 'var(--db-border)',
-            borderRadius: 8,
           }}
         />
         <Button
           onClick={() => void handleSend()}
           disabled={!draft.trim() || sending}
           aria-label="Send message"
-          style={{
-            background: 'var(--db-red)',
-            color: '#fff',
-            border: 'none',
-            fontWeight: 600,
-            fontSize: 14,
-            alignSelf: 'flex-end',
-            padding: '8px 20px',
-          }}
+          style={{ alignSelf: 'flex-end' }}
         >
           {sending ? '…' : 'Send'}
         </Button>
