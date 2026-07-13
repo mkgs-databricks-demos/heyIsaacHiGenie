@@ -516,7 +516,10 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
          LEFT JOIN agent_grants ag ON ag.agent_id = a.id AND ag.user_id = lower($2)
          WHERE a.project_id = $1
          ORDER BY a.nickname
-         LIMIT 200`,[i,r]);return n.json({project:a.rows[0],membership:t.rows[0],roster:o.rows})}catch(e){return console.error(`[bootstrap] error:`,e),n.status(500).json({error:`internal_error`})}}),t}function Wse(){let e=(0,Dn.Router)();return e.use((e,t,n)=>iQ(e)?n():t.status(401).json({error:`unauthenticated`})),e.get(`/`,async(e,t)=>{let n=e.query.q??``;try{let e=await zse(),r=await Promise.all(e.map(async({id:e})=>{let t=await K9(e),n=new URL(`https://api.github.com/installation/repositories`);n.searchParams.set(`per_page`,`50`);let r=await fetch(n.toString(),{headers:{Authorization:`Bearer ${t}`,Accept:`application/vnd.github+json`,"X-GitHub-Api-Version":`2022-11-28`}});if(!r.ok)return[];let i=await r.json();return i.repositories})),i=r.flat().filter(e=>!n||e.full_name.toLowerCase().includes(n.toLowerCase())).map(e=>({full_name:e.full_name,html_url:e.html_url,description:e.description}));return t.json({repos:i})}catch(e){return console.error(`[github-repos] error:`,e),t.status(500).json({error:`internal_error`})}}),e}async function Y9(e,t){let n=iQ(e);if(!n)return{ok:!1,status:401,error:`unauthenticated`,message:`OBO identity required — authenticate via Databricks first`};let r=Gse(e);if(!r){let e=await t.query(`SELECT project_id FROM project_members WHERE user_id = lower($1) AND role = 'owner' LIMIT 1`,[n]);if(e.rows.length===0)return{ok:!1,status:403,error:`forbidden`,message:`Only project owners or workspace admins can manage GitHub App settings`}}return{ok:!0,human:n}}function Gse(e){let t=e.headers[`x-forwarded-groups`];return!!(typeof t==`string`&&/\badmins\b/i.test(t))}const X9={app_id:`github_app_id`,private_key:`github_app_private_key`,client_id:`github_client_id`,client_secret:`github_client_secret`,webhook_secret:`github_webhook_secret`,app_public_url:`app_public_url`};function Kse(){let e=process.env.HI_GENIE_SECRET_SCOPE;if(!e||e.length===0)throw Error(`HI_GENIE_SECRET_SCOPE is not set — cannot write GitHub App credentials`);return e}let Z9=null;function qse(){return Z9??=new Ds.WorkspaceClient({}),Z9}async function Q9(e){let t=Kse(),n=qse(),r=[];for(let i of Object.keys(X9)){let a=e[i];if(typeof a!=`string`||a.length===0)continue;await n.secrets.putSecret({scope:t,key:X9[i],string_value:a}),r.push(i)}return r}const Jse=m1({app_id:d1().min(1),private_key:d1().min(1),client_id:d1().min(1),client_secret:d1().min(1),webhook_secret:d1().optional(),app_public_url:d1().optional()}),Yse=m1({private_key:d1().min(1)});function Xse(e){let t=(0,Dn.Router)();return t.get(`/status`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=H9(),a=i.app_id&&i.private_key&&i.client_id&&i.client_secret;n.json({configured:a,fields:i,relay:{sp_configured:typeof process.env.RELAY_SP_CLIENT_ID==`string`&&process.env.RELAY_SP_CLIENT_ID.length>0&&typeof process.env.RELAY_SP_CLIENT_SECRET==`string`&&process.env.RELAY_SP_CLIENT_SECRET.length>0,app_url_configured:typeof process.env.HI_GENIE_APP_URL==`string`&&process.env.HI_GENIE_APP_URL.length>0},can_mint_jwt:U9()})}),t.post(`/configure`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=Jse.safeParse(t.body);if(!i.success){n.status(400).json({error:`invalid_request`,details:i.error.flatten()});return}try{let e=await Q9(i.data);n.json({ok:!0,restart_required:!0,written:e})}catch(e){console.error(`[github-app] configure error:`,e),n.status(500).json({error:`secret_write_failed`,message:e instanceof Error?e.message:`Failed to write credentials to secret scope`})}}),t.post(`/rotate-key`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=Yse.safeParse(t.body);if(!i.success){n.status(400).json({error:`invalid_request`,details:i.error.flatten()});return}try{await Q9({private_key:i.data.private_key}),n.json({ok:!0,restart_required:!0})}catch(e){console.error(`[github-app] rotate-key error:`,e),n.status(500).json({error:`secret_write_failed`,message:e instanceof Error?e.message:`Failed to write private key to secret scope`})}}),t}let $9=!1;function Zse(e=`app, public`){if($9)return;$9=!0;let t=v.default.Pool;class n extends t{constructor(t){super({...t,onConnect:async t=>{try{await t.query(`SET search_path TO ${e}`)}catch(e){throw console.error(`[db] failed to set search_path on new Lakebase connection — rejecting this connection:`,e),e}}})}}v.default.Pool=n}const Qse={name:`001_initial_schema`,up:`
+         LIMIT 200`,[i,r]);return n.json({project:a.rows[0],membership:t.rows[0],roster:o.rows})}catch(e){return console.error(`[bootstrap] error:`,e),n.status(500).json({error:`internal_error`})}}),t}function Wse(e){let t=(0,Dn.Router)();return t.post(`/:thread_id/messages`,async(t,n)=>{let r=iQ(t);if(!r)return n.status(401).json({error:`unauthenticated`});let{thread_id:i}=t.params,{content:a,to_agent_id:o,to_nickname:s}=t.body;if(typeof a!=`string`||!a.trim())return n.status(400).json({error:`content required`});try{let c=await e.query(`SELECT project_id FROM threads WHERE id = $1`,[i]);if(c.rows.length===0)return n.status(404).json({error:`not_found`,message:`Thread not found`});let l=c.rows[0].project_id,u=await e.query(`SELECT * FROM project_members WHERE project_id = $1 AND user_id = lower($2)`,[l,r]);if(u.rows.length===0)return n.status(403).json({error:`forbidden`,message:`Not a member of this project`});let d=null;if(s){let t=await e.query(`SELECT id FROM agents WHERE project_id = $1 AND nickname = $2`,[l,s]);if(t.rows.length===0)return n.status(400).json({error:`Agent "${s}" not found`});d=t.rows[0].id}else if(o){let t=await e.query(`SELECT id FROM agents WHERE project_id = $1 AND id = $2`,[l,o]);if(t.rows.length===0)return n.status(400).json({error:`to_agent_id not found in this project`});d=t.rows[0].id}let f=await e.asUser(t).query(`INSERT INTO messages
+           (id, thread_id, author_user_id, parent_agent_id, to_agent_id, content, role, created_at)
+         VALUES (gen_random_uuid(), $1, lower($2), NULL, $3, $4, 'user', now())
+         RETURNING id, thread_id, author_user_id, parent_agent_id, to_agent_id, content, role, created_at`,[i,r,d,a]);return n.status(201).json(f.rows[0])}catch(e){return console.error(`[messages] send error:`,e),n.status(500).json({error:`internal_error`})}}),t}function Gse(){let e=(0,Dn.Router)();return e.use((e,t,n)=>iQ(e)?n():t.status(401).json({error:`unauthenticated`})),e.get(`/`,async(e,t)=>{let n=e.query.q??``;try{let e=await zse(),r=await Promise.all(e.map(async({id:e})=>{let t=await K9(e),n=new URL(`https://api.github.com/installation/repositories`);n.searchParams.set(`per_page`,`50`);let r=await fetch(n.toString(),{headers:{Authorization:`Bearer ${t}`,Accept:`application/vnd.github+json`,"X-GitHub-Api-Version":`2022-11-28`}});if(!r.ok)return[];let i=await r.json();return i.repositories})),i=r.flat().filter(e=>!n||e.full_name.toLowerCase().includes(n.toLowerCase())).map(e=>({full_name:e.full_name,html_url:e.html_url,description:e.description}));return t.json({repos:i})}catch(e){return console.error(`[github-repos] error:`,e),t.status(500).json({error:`internal_error`})}}),e}async function Y9(e,t){let n=iQ(e);if(!n)return{ok:!1,status:401,error:`unauthenticated`,message:`OBO identity required — authenticate via Databricks first`};let r=Kse(e);if(!r){let e=await t.query(`SELECT project_id FROM project_members WHERE user_id = lower($1) AND role = 'owner' LIMIT 1`,[n]);if(e.rows.length===0)return{ok:!1,status:403,error:`forbidden`,message:`Only project owners or workspace admins can manage GitHub App settings`}}return{ok:!0,human:n}}function Kse(e){let t=e.headers[`x-forwarded-groups`];return!!(typeof t==`string`&&/\badmins\b/i.test(t))}const X9={app_id:`github_app_id`,private_key:`github_app_private_key`,client_id:`github_client_id`,client_secret:`github_client_secret`,webhook_secret:`github_webhook_secret`,app_public_url:`app_public_url`};function qse(){let e=process.env.HI_GENIE_SECRET_SCOPE;if(!e||e.length===0)throw Error(`HI_GENIE_SECRET_SCOPE is not set — cannot write GitHub App credentials`);return e}let Z9=null;function Jse(){return Z9??=new Ds.WorkspaceClient({}),Z9}async function Q9(e){let t=qse(),n=Jse(),r=[];for(let i of Object.keys(X9)){let a=e[i];if(typeof a!=`string`||a.length===0)continue;await n.secrets.putSecret({scope:t,key:X9[i],string_value:a}),r.push(i)}return r}const Yse=m1({app_id:d1().min(1),private_key:d1().min(1),client_id:d1().min(1),client_secret:d1().min(1),webhook_secret:d1().optional(),app_public_url:d1().optional()}),Xse=m1({private_key:d1().min(1)});function Zse(e){let t=(0,Dn.Router)();return t.get(`/status`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=H9(),a=i.app_id&&i.private_key&&i.client_id&&i.client_secret;n.json({configured:a,fields:i,relay:{sp_configured:typeof process.env.RELAY_SP_CLIENT_ID==`string`&&process.env.RELAY_SP_CLIENT_ID.length>0&&typeof process.env.RELAY_SP_CLIENT_SECRET==`string`&&process.env.RELAY_SP_CLIENT_SECRET.length>0,app_url_configured:typeof process.env.HI_GENIE_APP_URL==`string`&&process.env.HI_GENIE_APP_URL.length>0},can_mint_jwt:U9()})}),t.post(`/configure`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=Yse.safeParse(t.body);if(!i.success){n.status(400).json({error:`invalid_request`,details:i.error.flatten()});return}try{let e=await Q9(i.data);n.json({ok:!0,restart_required:!0,written:e})}catch(e){console.error(`[github-app] configure error:`,e),n.status(500).json({error:`secret_write_failed`,message:e instanceof Error?e.message:`Failed to write credentials to secret scope`})}}),t.post(`/rotate-key`,async(t,n)=>{let r=await Y9(t,e);if(!r.ok){n.status(r.status).json({error:r.error,message:r.message});return}let i=Xse.safeParse(t.body);if(!i.success){n.status(400).json({error:`invalid_request`,details:i.error.flatten()});return}try{await Q9({private_key:i.data.private_key}),n.json({ok:!0,restart_required:!0})}catch(e){console.error(`[github-app] rotate-key error:`,e),n.status(500).json({error:`secret_write_failed`,message:e instanceof Error?e.message:`Failed to write private key to secret scope`})}}),t}let $9=!1;function Qse(e=`app, public`){if($9)return;$9=!0;let t=v.default.Pool;class n extends t{constructor(t){super({...t,onConnect:async t=>{try{await t.query(`SET search_path TO ${e}`)}catch(e){throw console.error(`[db] failed to set search_path on new Lakebase connection — rejecting this connection:`,e),e}}})}}v.default.Pool=n}const $se={name:`001_initial_schema`,up:`
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
     -- 1. projects
@@ -719,16 +722,16 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
     CREATE INDEX IF NOT EXISTS idx_dcr_clients_project ON dcr_clients(project_id);
     CREATE INDEX IF NOT EXISTS idx_jti_expires ON persona_token_jti(expires_at);
     CREATE INDEX IF NOT EXISTS idx_jti_human ON persona_token_jti(human);
-  `},$se={name:`002_phase1_trackb`,up:`
+  `},ece={name:`002_phase1_trackb`,up:`
     ALTER TABLE persona_token_jti ADD COLUMN IF NOT EXISTS agent_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_messages_parent_agent ON messages(parent_agent_id);
     CREATE INDEX IF NOT EXISTS idx_messages_to_agent ON messages(to_agent_id);
     CREATE INDEX IF NOT EXISTS idx_session_summaries_parent_agent ON session_summaries(parent_agent_id);
     CREATE INDEX IF NOT EXISTS idx_jti_project ON persona_token_jti(project_id);
-  `},ece={name:`003_message_read_tracking`,up:`
+  `},tce={name:`003_message_read_tracking`,up:`
     ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
     CREATE INDEX IF NOT EXISTS idx_messages_to_agent_read_at ON messages(to_agent_id, read_at);
-  `},tce={name:`004_rls_policies`,up:`
+  `},nce={name:`004_rls_policies`,up:`
     CREATE OR REPLACE FUNCTION public.hi_genie_has_project_access(target_project_id UUID, user_name TEXT)
     RETURNS BOOLEAN
     LANGUAGE sql
@@ -836,7 +839,7 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
     CREATE POLICY pull_requests_project_member_access ON pull_requests
       USING (public.hi_genie_has_project_access(project_id, current_user))
       WITH CHECK (public.hi_genie_has_project_access(project_id, current_user));
-  `},nce=[`projects`,`project_members`,`agents`,`agent_grants`,`tasks`,`threads`,`messages`,`session_summaries`,`repo_config`,`agent_checkout_spec`,`pull_requests`,`dcr_clients`,`persona_token_jti`],rce=nce.map(e=>`
+  `},rce=[`projects`,`project_members`,`agents`,`agent_grants`,`tasks`,`threads`,`messages`,`session_summaries`,`repo_config`,`agent_checkout_spec`,`pull_requests`,`dcr_clients`,`persona_token_jti`],ice=rce.map(e=>`
     DO $$
     BEGIN
       IF EXISTS (
@@ -846,17 +849,17 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
       END IF;
     END $$;
   `).join(`
-`),ice={name:`005_app_schema`,up:`
+`),ace={name:`005_app_schema`,up:`
     CREATE SCHEMA IF NOT EXISTS app;
 
-    ${rce}
+    ${ice}
 
     -- hi_genie_has_project_access is SECURITY DEFINER with a pinned
     -- search_path (defense against search_path hijacking). Its body queries
     -- project_members unqualified, so once that table lives in app, the
     -- pinned search_path must include app or every RLS policy check fails.
     ALTER FUNCTION public.hi_genie_has_project_access(UUID, TEXT) SET search_path = app, public;
-  `},ace={name:`006_omnigent_routing`,up:`
+  `},oce={name:`006_omnigent_routing`,up:`
     -- Omnigent routing columns on agents (nullable — non-Omnigent agents leave NULL)
     ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_server TEXT;
     ALTER TABLE agents ADD COLUMN IF NOT EXISTS omnigent_session_id TEXT;
@@ -889,7 +892,7 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
       AFTER INSERT ON messages
       FOR EACH ROW
       EXECUTE FUNCTION app.notify_hi_genie_message();
-  `},oce={name:`007_github_tokens`,up:`
+  `},sce={name:`007_github_tokens`,up:`
     -- GitHub OAuth tokens from the write-lane OBO flow
     CREATE TABLE IF NOT EXISTS app.github_tokens (
       user_id      TEXT NOT NULL PRIMARY KEY,
@@ -934,7 +937,7 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
         EXECUTE 'ALTER TABLE app.pull_requests DROP CONSTRAINT ' || quote_ident(cname);
       END IF;
     END $body$;
-  `},sce={name:`008_replica_identity`,up:`
+  `},cce={name:`008_replica_identity`,up:`
     -- Set REPLICA IDENTITY FULL on all existing app-schema tables.
     -- Idempotent: ALTER TABLE REPLICA IDENTITY is always safe to re-run.
     ALTER TABLE app.projects             REPLICA IDENTITY FULL;
@@ -967,12 +970,12 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
         EXECUTE 'ALTER TABLE app.pull_requests DROP CONSTRAINT ' || quote_ident(cname);
       END IF;
     END $body$;
-  `},cce={name:`009_per_repo_fields`,up:`
+  `},lce={name:`009_per_repo_fields`,up:`
     COMMENT ON COLUMN app.repo_config.repos IS
       'Array of { url: string, webhook_secret: string, installation_id: number }. '
       'webhook_secret: per-repo HMAC secret for the GH Actions relay. '
       'installation_id: GitHub App installation ID for the org/account owning this repo.';
-  `},lce={name:`010_agent_presentation`,up:`
+  `},uce={name:`010_agent_presentation`,up:`
     ALTER TABLE app.agents ADD COLUMN IF NOT EXISTS label text;
     ALTER TABLE app.agents ADD COLUMN IF NOT EXISTS color text;
 
@@ -980,10 +983,10 @@ print('sha256=' + hmac.new(secret, payload, hashlib.sha256).hexdigest())
     -- color. Guarded on NULL so this is idempotent and non-destructive.
     UPDATE app.agents SET label = initcap(nickname) WHERE label IS NULL;
     UPDATE app.agents SET color = '#4a86e8'          WHERE color IS NULL;
-  `},uce=[Qse,$se,ece,tce,ice,ace,oce,sce,cce,lce],dce=`
+  `},dce=[$se,ece,tce,nce,ace,oce,sce,cce,lce,uce],fce=`
   CREATE TABLE IF NOT EXISTS public._migrations (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
-`,fce=`SELECT name FROM public._migrations ORDER BY id`,pce=`INSERT INTO public._migrations (name) VALUES ($1)`;async function mce(e){await e.query(dce);let{rows:t}=await e.query(fce),n=new Set(t.map(e=>e.name)),r=0;for(let t of uce){if(n.has(t.name))continue;console.log(`[migrations] Applying: ${t.name}`);try{await e.query(t.up),await e.query(pce,[t.name]),r++,console.log(`[migrations] Applied: ${t.name}`)}catch(e){throw console.error(`[migrations] FAILED: ${t.name}`,e),Error(`Migration "${t.name}" failed: ${e.message}. Database may be in an inconsistent state. Fix the migration and restart.`)}}return r===0?console.log(`[migrations] All migrations already applied.`):console.log(`[migrations] Applied ${r} migration(s).`),r}if(!process.env.HI_GENIE_JWT_SIGNING_KEY)if(process.env.NODE_ENV===`development`)console.warn(`[auth] HI_GENIE_JWT_SIGNING_KEY not set — persona tokens will fail. Set it in server/.env`);else throw Error(`HI_GENIE_JWT_SIGNING_KEY is required`);Zse();const hce=fP({plugins:[fX(),PK()],async onPluginsReady(e){let t=e.lakebase;try{await mce(t)}catch(e){throw console.error(`[startup] Migration failed — halting:`,e),e}e.server.extend(e=>{e.use(`/webhook/github`,Lse(t)),e.use(Dn.default.json()),e.use(`/mcp`,hse(t)),e.use(`/register`,_se(t)),e.use(`/.well-known`,Pse()),e.use(`/token`,Nse(t)),e.use(`/api/bootstrap`,Use(t)),e.use(`/auth/github`,Fse(t)),e.use(`/api/repos`,Hse(t)),e.use(`/api/github/repos`,Wse()),e.use(`/api/github`,Xse(t)),e.get(`/api/me`,(e,t)=>{let n=iQ(e);if(!n){t.status(401).json({error:`unauthenticated`});return}t.json({email:n,oboHeaders:Object.fromEntries([`x-forwarded-email`,`x-forwarded-user`,`x-databricks-user-email`,`x-ms-client-principal-name`].filter(t=>e.headers[t]).map(t=>[t,e.headers[t]]))})}),e.get(`/health`,(e,t)=>t.json({status:`ok`,ts:new Date().toISOString()}))})}});exports.AppKit=hce,exports.SERVER_INFO=P9;
+`,pce=`SELECT name FROM public._migrations ORDER BY id`,mce=`INSERT INTO public._migrations (name) VALUES ($1)`;async function hce(e){await e.query(fce);let{rows:t}=await e.query(pce),n=new Set(t.map(e=>e.name)),r=0;for(let t of dce){if(n.has(t.name))continue;console.log(`[migrations] Applying: ${t.name}`);try{await e.query(t.up),await e.query(mce,[t.name]),r++,console.log(`[migrations] Applied: ${t.name}`)}catch(e){throw console.error(`[migrations] FAILED: ${t.name}`,e),Error(`Migration "${t.name}" failed: ${e.message}. Database may be in an inconsistent state. Fix the migration and restart.`)}}return r===0?console.log(`[migrations] All migrations already applied.`):console.log(`[migrations] Applied ${r} migration(s).`),r}if(!process.env.HI_GENIE_JWT_SIGNING_KEY)if(process.env.NODE_ENV===`development`)console.warn(`[auth] HI_GENIE_JWT_SIGNING_KEY not set — persona tokens will fail. Set it in server/.env`);else throw Error(`HI_GENIE_JWT_SIGNING_KEY is required`);Qse();const gce=fP({plugins:[fX(),PK()],async onPluginsReady(e){let t=e.lakebase;try{await hce(t)}catch(e){throw console.error(`[startup] Migration failed — halting:`,e),e}e.server.extend(e=>{e.use(`/webhook/github`,Lse(t)),e.use(Dn.default.json()),e.use(`/mcp`,hse(t)),e.use(`/register`,_se(t)),e.use(`/.well-known`,Pse()),e.use(`/token`,Nse(t)),e.use(`/api/bootstrap`,Use(t)),e.use(`/api/threads`,Wse(t)),e.use(`/auth/github`,Fse(t)),e.use(`/api/repos`,Hse(t)),e.use(`/api/github/repos`,Gse()),e.use(`/api/github`,Zse(t)),e.get(`/api/me`,(e,t)=>{let n=iQ(e);if(!n){t.status(401).json({error:`unauthenticated`});return}t.json({email:n,oboHeaders:Object.fromEntries([`x-forwarded-email`,`x-forwarded-user`,`x-databricks-user-email`,`x-ms-client-principal-name`].filter(t=>e.headers[t]).map(t=>[t,e.headers[t]]))})}),e.get(`/health`,(e,t)=>t.json({status:`ok`,ts:new Date().toISOString()}))})}});exports.AppKit=gce,exports.SERVER_INFO=P9;

@@ -9,6 +9,7 @@ import { githubOAuthRouter } from './routes/github-oauth.js';
 import { githubWebhookRouter } from './routes/github-webhook.js';
 import { reposRouter } from './routes/repos.js';
 import { bootstrapRouter } from './routes/bootstrap.js';
+import { messagesRouter } from './routes/messages.js';
 import { githubReposRouter } from './routes/github-repos.js';
 import { githubAppRouter } from './routes/github-app.js';
 import type { Db } from './db/index.js';
@@ -72,6 +73,11 @@ const AppKit = createApp({
       // client can discover the primary agent (live) before minting a persona
       // token. Breaks the persona-token/roster chicken-and-egg.
       app.use('/api/bootstrap', bootstrapRouter(db));
+
+      // Human-authored chat send — OBO-authenticated (no persona token). Writes
+      // role='user', author_user_id=lower(OBO email), parent_agent_id=NULL so the
+      // client can compute message ownership from persisted data across reloads.
+      app.use('/api/threads', messagesRouter(db));
 
       // GitHub OAuth flow — write-lane per-user OBO auth for external agents
       app.use('/auth/github', githubOAuthRouter(db));

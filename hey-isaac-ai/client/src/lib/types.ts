@@ -55,7 +55,11 @@ export interface Thread {
 export interface Message {
   id: string;
   thread_id: string;
-  parent_agent_id: string;
+  // Exactly one of author_user_id / parent_agent_id is set (DB CHECK):
+  // author_user_id (lowercase email) for human-authored 'user' messages,
+  // parent_agent_id for agent-authored 'assistant' messages.
+  author_user_id: string | null;
+  parent_agent_id: string | null;
   to_agent_id: string | null;
   content: string;
   role: string;

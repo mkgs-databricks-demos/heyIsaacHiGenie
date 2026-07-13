@@ -137,6 +137,19 @@ export default function App() {
     return <LoadingView />;
   }
 
+  // Resolve the live roster entry for the chat's target agent so ChatView can
+  // route + render against real nickname/label/color instead of a hardcoded
+  // agent. undefined only if the roster no longer contains the id (guarded on
+  // render below).
+  const selectedAgent =
+    view.kind === 'chat' ? agents.find(a => a.id === view.agentId) : undefined;
+
+  // The current viewer's own OBO email. Human-authored messages persist with
+  // author_user_id = lower(this email), so ChatView derives message ownership
+  // (isMine) purely from persisted fields — reload-safe and correct when
+  // multiple distinct humans message in the same thread.
+  const ownEmail = identity?.email;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Header identity={identity} />
@@ -196,10 +209,11 @@ export default function App() {
             </div>
           )}
 
-          {view.kind === 'chat' && personaToken && (
+          {view.kind === 'chat' && personaToken && selectedAgent && ownEmail && (
             <ChatView
               threadId={view.threadId}
-              agentId={view.agentId}
+              agent={selectedAgent}
+              ownEmail={ownEmail}
               threadTitle={view.threadTitle}
               personaToken={personaToken}
               onBack={() => setView({ kind: 'project' })}
