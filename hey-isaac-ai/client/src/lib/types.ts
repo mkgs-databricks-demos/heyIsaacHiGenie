@@ -10,6 +10,39 @@ export interface AgentConfig {
   color: string;
 }
 
+// Shape of a single row returned by the get_agent_roster MCP tool.
+// label/color are server-authoritative (COALESCE'd, never null).
+export interface RosterAgent {
+  id: string;
+  nickname: string;
+  label: string;
+  color: string;
+  grantee_id: string | null;
+}
+
+// Live project data resolved from the get_project_context MCP tool. Only the
+// fields the shell actually consumes are modelled here.
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export interface ProjectMembership {
+  project_id: string;
+  user_id: string;
+  role: string;
+}
+
+// Response of the OBO-authenticated GET /api/bootstrap read: live project
+// context + agent roster, used to seed the shell before any persona token is
+// minted.
+export interface BootstrapResponse {
+  project: Project;
+  membership: ProjectMembership;
+  roster: RosterAgent[];
+}
+
 export interface Thread {
   id: string;
   project_id: string;

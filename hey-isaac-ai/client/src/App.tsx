@@ -6,18 +6,21 @@ import ProjectView from './components/ProjectView';
 import ChatView from './components/ChatView';
 import GitHubAppSetupBanner from './components/GitHubAppSetupBanner';
 import { fetchGitHubStatus, type GitHubStatus } from './lib/github';
-import type { Identity, View, Thread, AgentConfig } from './lib/types';
+import type {
+  Identity,
+  View,
+  Thread,
+  AgentConfig,
+  Project,
+  BootstrapResponse,
+} from './lib/types';
 
-const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
-
-const AGENTS: AgentConfig[] = [
-  {
-    id: '00000000-0000-0000-0000-000000000002',
-    persona: 'genie',
-    label: 'Genie',
-    color: 'var(--primary)',
-  },
-];
+// Single bootstrap seed. There is no "list my projects" tool yet, so the shell
+// is seeded with one project id. Everything the UI renders — project header,
+// agent roster, and the working persona token — is driven by live data fetched
+// with this seed. There is deliberately NO seed agent nickname: the primary
+// agent is discovered from the live roster (see init()).
+const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000001';
 
 interface PersonaTokenResponse {
   token: string;
@@ -26,9 +29,25 @@ interface PersonaTokenResponse {
   expires_in: number;
 }
 
+async function mintPersonaToken(persona: string, projectId: string): Promise<string> {
+  const res = await fetch('/token/persona', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persona, project_id: projectId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+    throw new Error(body.message ?? body.error ?? `Token fetch failed (${res.status})`);
+  }
+  const data = (await res.json()) as PersonaTokenResponse;
+  return data.token;
+}
+
 export default function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [personaToken, setPersonaToken] = useState<string | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [threads, setThreads] = useState<Thread[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
@@ -56,21 +75,35 @@ export default function App() {
         const me = await meRes.json() as Identity;
         setIdentity(me);
 
-        // Step 2: Get persona token for the genie agent
-        const tokenRes = await fetch('/token/persona', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ persona: 'genie', project_id: PROJECT_ID }),
-        });
-        if (!tokenRes.ok) {
-          const body = await tokenRes.json().catch(() => ({})) as { message?: string; error?: string };
-          throw new Error(body.message ?? body.error ?? `Token fetch failed (${tokenRes.status})`);
+        // Step 2: Read live project context + roster under the human's OBO
+        // identity — no persona token needed, so no seed nickname is required.
+        const bootRes = await fetch(`/api/bootstrap?project_id=${SEED_PROJECT_ID}`);
+        if (!bootRes.ok) {
+          const body = await bootRes.json().catch(() => ({})) as { message?: string; error?: string };
+          throw new Error(body.message ?? body.error ?? `Bootstrap failed (${bootRes.status})`);
         }
-        const tokenData = await tokenRes.json() as PersonaTokenResponse;
-        setPersonaToken(tokenData.token);
+        const boot = await bootRes.json() as BootstrapResponse;
+        setProject(boot.project);
+
+        const agentList: AgentConfig[] = boot.roster.map(r => ({
+          id: r.id,
+          persona: r.nickname,
+          label: r.label,
+          color: r.color,
+        }));
+        setAgents(agentList);
+
+        // Step 3: Mint the working persona token for the roster's primary agent
+        // (nickname sourced from live data). An empty roster leaves personaToken
+        // null — the shell renders the 'no agents' placeholder gracefully.
+        const primary = agentList[0];
+        if (primary) {
+          setPersonaToken(await mintPersonaToken(primary.persona, boot.project.id));
+        }
+
         setView({ kind: 'project' });
 
-        // Step 3: Load GitHub App status (owner-only; null when unauthorized).
+        // Step 4: Load GitHub App status (owner-only; null when unauthorized).
         void refreshGitHubStatus();
       } catch (e) {
         setInitError(e instanceof Error ? e.message : String(e));
@@ -131,15 +164,16 @@ export default function App() {
           identity={identity}
           threads={threads}
           view={view}
-          agents={AGENTS}
+          agents={agents}
           onNavigateProject={() => setView({ kind: 'project' })}
           onNavigateChat={handleNavigateChat}
         />
 
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {view.kind === 'project' && personaToken && (
+          {view.kind === 'project' && project && (
             <ProjectView
-              agents={AGENTS}
+              project={project}
+              agents={agents}
               personaToken={personaToken}
               githubStatus={githubStatus}
               onRefreshGitHubStatus={refreshGitHubStatus}
@@ -147,7 +181,7 @@ export default function App() {
             />
           )}
 
-          {view.kind === 'project' && !personaToken && (
+          {view.kind === 'project' && !project && (
             <div
               style={{
                 display: 'flex',
@@ -158,7 +192,7 @@ export default function App() {
                 fontSize: 14,
               }}
             >
-              Waiting for persona token…
+              {initError ? 'Could not load project.' : 'Loading project…'}
             </div>
           )}
 

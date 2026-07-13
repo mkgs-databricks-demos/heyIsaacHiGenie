@@ -57,8 +57,15 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       );
       if (memberCheck.rows.length === 0) return err('Not a member of this project');
 
+      // The COALESCE'd label/color are selected AFTER a.* so they override the
+      // raw (possibly-null) label/color columns in the result row — the roster
+      // therefore never returns null for label/color, even for rows created
+      // before migration 010 backfilled them.
       const result = await db.query<Agent & { grantee_id: string | null }>(
-        `SELECT a.*, ag.user_id AS grantee_id
+        `SELECT a.*,
+                COALESCE(a.label, initcap(a.nickname)) AS label,
+                COALESCE(a.color, '#4a86e8')           AS color,
+                ag.user_id AS grantee_id
          FROM agents a
          LEFT JOIN agent_grants ag ON ag.agent_id = a.id AND ag.user_id = lower($2)
          WHERE a.project_id = $1
@@ -78,8 +85,21 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       project_id: z.string().describe('Project ID'),
       task_id: z.string().optional().describe('Optional task ID to link'),
       title: z.string().optional().describe('Optional thread title'),
+      agent_id: z.string().optional().describe('Optional agent the thread is started for'),
     },
-    async ({ project_id, task_id, title }) => {
+    async ({ project_id, task_id, title, agent_id }) => {
+      // If the caller names a target agent, verify it is a real agent in this
+      // project (references live roster data, not an implicit/hardcoded agent).
+      // Thread<->agent linkage persistence is deferred to 6b (routing); here we
+      // only validate the reference.
+      if (agent_id) {
+        const agentCheck = await db.query<{ id: string }>(
+          'SELECT id FROM agents WHERE id = $1 AND project_id = $2',
+          [agent_id, project_id],
+        );
+        if (agentCheck.rows.length === 0) return err('Agent not found in this project');
+      }
+
       const result = await db.asUser(req).query<Thread>(
         `INSERT INTO threads (id, project_id, task_id, title, created_by, created_at, updated_at)
          VALUES (gen_random_uuid(), $1, $2, $3, lower($4), now(), now())

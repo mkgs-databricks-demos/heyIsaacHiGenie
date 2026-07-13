@@ -13,23 +13,20 @@ import {
 import { callMcp } from '../lib/mcp';
 import GitHubAppStatusCard from './GitHubAppStatusCard';
 import type { GitHubStatus } from '../lib/github';
-import type { AgentConfig, Thread } from '../lib/types';
+import type { AgentConfig, Project, Thread } from '../lib/types';
 import RepoSection from './RepoSection';
 
-const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
-const PROJECT_NAME = 'Hi Genie — Demo Project';
-const PROJECT_DESCRIPTION =
-  'Multi-agent coordination workspace. Each agent runs on its own branch and responds to threads you start here.';
-
 interface ProjectViewProps {
+  project: Project;
   agents: AgentConfig[];
-  personaToken: string;
+  personaToken: string | null;
   githubStatus: GitHubStatus | null;
   onRefreshGitHubStatus: () => void;
   onStartThread: (thread: Thread, agentId: string) => void;
 }
 
 export default function ProjectView({
+  project,
   agents,
   personaToken,
   githubStatus,
@@ -40,13 +37,19 @@ export default function ProjectView({
   const [error, setError] = useState<string | null>(null);
 
   async function handleStartThread(agent: AgentConfig) {
+    if (!personaToken) {
+      setError('No persona token available — cannot start a thread.');
+      return;
+    }
     setStartingFor(agent.id);
     setError(null);
     try {
       const title = `Chat with ${agent.label} — ${new Date().toLocaleDateString()}`;
+      // Thread the SELECTED agent's real live id into the request so thread
+      // creation references live roster data, not an implicit agent.
       const thread = await callMcp<Thread>(
         'start_thread',
-        { project_id: PROJECT_ID, title },
+        { project_id: project.id, title, agent_id: agent.id },
         personaToken,
       );
       onStartThread(thread, agent.id);
@@ -70,12 +73,14 @@ export default function ProjectView({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <span style={{ fontSize: 28 }}>🪔</span>
           <h2 style={{ margin: 0, fontSize: 26 }}>
-            {PROJECT_NAME}
+            {project.name}
           </h2>
         </div>
-        <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 14, lineHeight: 1.6 }}>
-          {PROJECT_DESCRIPTION}
-        </p>
+        {project.description && (
+          <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 14, lineHeight: 1.6 }}>
+            {project.description}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -110,6 +115,14 @@ export default function ProjectView({
       </div>
 
       {/* Agent cards */}
+      {agents.length === 0 ? (
+        <div style={{
+          border: '1px dashed var(--border)', borderRadius: 'var(--radius)',
+          padding: 24, textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13,
+        }}>
+          No agents in this project yet.
+        </div>
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {agents.map(agent => (
             <Card key={agent.id}>
@@ -158,7 +171,7 @@ export default function ProjectView({
 
                 <Button
                   onClick={() => handleStartThread(agent)}
-                  disabled={startingFor === agent.id}
+                  disabled={startingFor === agent.id || !personaToken}
                 >
                   {startingFor === agent.id ? 'Starting…' : 'Start a thread'}
                 </Button>
@@ -182,6 +195,7 @@ export default function ProjectView({
             </Card>
         ))}
       </div>
+      )}
 
       {/* GitHub App settings — owner-only; null when caller is not an owner/admin. */}
       {githubStatus && (
@@ -213,7 +227,7 @@ export default function ProjectView({
         </>
       )}
 
-      <RepoSection personaToken={personaToken} />
+      <RepoSection projectId={project.id} personaToken={personaToken} />
     </div>
   );
 }

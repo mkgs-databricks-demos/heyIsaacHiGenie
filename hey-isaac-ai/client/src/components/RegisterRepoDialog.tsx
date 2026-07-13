@@ -5,13 +5,18 @@ import type { GithubRepo, RegisterRepoResult } from '../lib/types';
 type Step = 'pick' | 'preflight' | 'registering' | 'done' | 'error';
 
 interface RegisterRepoDialogProps {
-  personaToken: string;
+  // Vestigial for auth (these routes are OBO-authenticated) but forwarded when
+  // present. Null in the empty-roster case where no persona token was minted.
+  personaToken: string | null;
   projectId: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export default function RegisterRepoDialog({ personaToken, projectId, onClose, onSuccess }: RegisterRepoDialogProps) {
+  const authHeader: Record<string, string> = personaToken
+    ? { Authorization: `Bearer ${personaToken}` }
+    : {};
   const [step, setStep] = useState<Step>('pick');
   const [query, setQuery] = useState('');
   const [repos, setRepos] = useState<GithubRepo[]>([]);
@@ -25,7 +30,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
     setLoadingRepos(true);
     try {
       const resp = await fetch(`/api/github/repos?q=${encodeURIComponent(q)}`, {
-        headers: { Authorization: `Bearer ${personaToken}` },
+        headers: authHeader,
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as { repos: GithubRepo[] };
@@ -41,7 +46,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
     try {
       const resp = await fetch('/api/repos/preflight', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ project_id: projectId, repo }),
       });
       if (!resp.ok) { setErrorMsg(`Preflight failed: HTTP ${resp.status}`); setStep('error'); return; }
@@ -58,7 +63,7 @@ export default function RegisterRepoDialog({ personaToken, projectId, onClose, o
     try {
       const resp = await fetch('/api/repos/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ project_id: projectId, repo: selectedRepo }),
       });
       if (!resp.ok) { setErrorMsg(`Registration failed: HTTP ${resp.status}`); setStep('error'); return; }
