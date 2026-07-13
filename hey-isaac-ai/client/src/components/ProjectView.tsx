@@ -12,6 +12,7 @@ import {
 } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
 import GitHubAppStatusCard from './GitHubAppStatusCard';
+import AgentBranchPrControls from './AgentBranchPrControls';
 import type { GitHubStatus } from '../lib/github';
 import type { AgentConfig, Project, Thread } from '../lib/types';
 import RepoSection from './RepoSection';
@@ -191,6 +192,7 @@ export default function ProjectView({
                   </code>{' '}
                   to direct messages.
                 </p>
+                <AgentBranchPrControls agent={agent} projectId={project.id} />
               </CardContent>
             </Card>
         ))}

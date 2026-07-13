@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Alert, AlertTitle, AlertDescription } from '@databricks/appkit-ui/react';
 import type { RepoStatus } from '../lib/types';
+import { callMcp } from '../lib/mcp';
 import RelayStatusBadge from './RelayStatusBadge';
 import RegisterRepoDialog from './RegisterRepoDialog';
 
@@ -11,6 +12,21 @@ interface RepoSectionProps {
   personaToken: string | null;
 }
 
+interface RepoConfig {
+  project_id: string;
+  repos: unknown[];
+  updated_at: string;
+  updated_by: string;
+}
+
+function repoConfigLabel(repo: unknown): string | null {
+  if (typeof repo === 'string') return repo;
+  if (!repo || typeof repo !== 'object') return null;
+  const record = repo as Record<string, unknown>;
+  const label = record.url ?? record.repo_url ?? record.full_name ?? record.name;
+  return typeof label === 'string' ? label : null;
+}
+
 export default function RepoSection({ projectId, personaToken }: RepoSectionProps) {
   const authHeader: Record<string, string> = personaToken
     ? { Authorization: `Bearer ${personaToken}` }
@@ -19,6 +35,7 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
   const [repos, setRepos] = useState<RepoStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [repoConfig, setRepoConfig] = useState<RepoConfig | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [resyncErrors, setResyncErrors] = useState<Record<string, string>>({});
 
@@ -32,6 +49,11 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as { repos: RepoStatus[] };
       setRepos(data.repos);
+      if (personaToken) {
+        setRepoConfig(await callMcp<RepoConfig | null>('get_repo_config', { project_id: projectId }, personaToken));
+      } else {
+        setRepoConfig(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -39,7 +61,11 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
     }
   }
 
-  useEffect(() => { void fetchRepos(); }, [projectId]);
+  useEffect(() => { void fetchRepos(); }, [projectId, personaToken]);
+
+  const configuredRepos = repoConfig?.repos
+    .map(repoConfigLabel)
+    .filter((repo): repo is string => Boolean(repo)) ?? [];
 
   return (
     <div style={{ marginTop: 40 }}>
@@ -84,6 +110,21 @@ export default function RepoSection({ projectId, personaToken }: RepoSectionProp
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {repoConfig && (
+            <div style={{ padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--muted)', fontSize: 12, color: 'var(--muted-foreground)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--card-foreground)', marginBottom: 4 }}>
+                Repo config
+              </div>
+              <div>
+                {configuredRepos.length > 0
+                  ? `${configuredRepos.length} configured: ${configuredRepos.join(', ')}`
+                  : `${repoConfig.repos.length} configured repos`}
+              </div>
+              <div style={{ marginTop: 2 }}>
+                Updated by {repoConfig.updated_by} · {new Date(repoConfig.updated_at).toLocaleString()}
+              </div>
+            </div>
+          )}
           {repos.map(repo => (
             <div key={repo.url} style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
