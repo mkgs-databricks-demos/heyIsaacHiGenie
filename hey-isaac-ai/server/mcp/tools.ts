@@ -57,8 +57,15 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
       );
       if (memberCheck.rows.length === 0) return err('Not a member of this project');
 
+      // The COALESCE'd label/color are selected AFTER a.* so they override the
+      // raw (possibly-null) label/color columns in the result row — the roster
+      // therefore never returns null for label/color, even for rows created
+      // before migration 010 backfilled them.
       const result = await db.query<Agent & { grantee_id: string | null }>(
-        `SELECT a.*, ag.user_id AS grantee_id
+        `SELECT a.*,
+                COALESCE(a.label, initcap(a.nickname)) AS label,
+                COALESCE(a.color, '#4a86e8')           AS color,
+                ag.user_id AS grantee_id
          FROM agents a
          LEFT JOIN agent_grants ag ON ag.agent_id = a.id AND ag.user_id = lower($2)
          WHERE a.project_id = $1

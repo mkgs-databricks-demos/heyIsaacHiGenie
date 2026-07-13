@@ -20,6 +20,8 @@ export interface Agent {
   id: string;
   project_id: string;
   nickname: string;
+  label: string | null;
+  color: string | null;
   description: string | null;
   created_by: string;
   created_at: Date;

@@ -4,13 +4,12 @@ import type { RepoStatus } from '../lib/types';
 import RelayStatusBadge from './RelayStatusBadge';
 import RegisterRepoDialog from './RegisterRepoDialog';
 
-const PROJECT_ID = '00000000-0000-0000-0000-000000000001';
-
 interface RepoSectionProps {
+  projectId: string;
   personaToken: string;
 }
 
-export default function RepoSection({ personaToken }: RepoSectionProps) {
+export default function RepoSection({ projectId, personaToken }: RepoSectionProps) {
   const [repos, setRepos] = useState<RepoStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +20,7 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/repos/status?project_id=${PROJECT_ID}`, {
+      const resp = await fetch(`/api/repos/status?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${personaToken}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -34,7 +33,7 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
     }
   }
 
-  useEffect(() => { void fetchRepos(); }, []);
+  useEffect(() => { void fetchRepos(); }, [projectId]);
 
   return (
     <div style={{ marginTop: 40 }}>
@@ -98,7 +97,7 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
                       const resp = await fetch('/api/repos/register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${personaToken}` },
-                        body: JSON.stringify({ project_id: PROJECT_ID, repo: repo.url.replace('https://github.com/', '') }),
+                        body: JSON.stringify({ project_id: projectId, repo: repo.url.replace('https://github.com/', '') }),
                       });
                       if (!resp.ok) {
                         setResyncErrors(prev => ({ ...prev, [repo.url]: `Re-sync failed: HTTP ${resp.status}` }));
@@ -125,7 +124,7 @@ export default function RepoSection({ personaToken }: RepoSectionProps) {
       {showRegister && (
         <RegisterRepoDialog
           personaToken={personaToken}
-          projectId={PROJECT_ID}
+          projectId={projectId}
           onClose={() => setShowRegister(false)}
           onSuccess={() => { setShowRegister(false); void fetchRepos(); }}
         />
