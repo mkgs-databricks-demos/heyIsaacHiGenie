@@ -16,10 +16,10 @@ interface ChatViewProps {
   // The live roster entry for the agent this thread targets — its nickname
   // drives message routing and its label/color drive the header.
   agent: AgentConfig;
-  // The agent id of the persona the human is operating as (the persona token's
-  // agent). Messages the human sends persist with parent_agent_id === this, so
-  // it is the reload-safe signal for "mine".
-  ownAgentId: string;
+  // The current viewer's own OBO email. Human-authored messages persist with
+  // author_user_id = lower(this email); isMine compares against it, so ownership
+  // is derived purely from persisted data — reload-safe and multi-human-correct.
+  ownEmail: string;
   threadTitle: string;
   personaToken: string;
   onBack: () => void;
@@ -28,13 +28,12 @@ interface ChatViewProps {
 export default function ChatView({
   threadId,
   agent,
-  ownAgentId,
+  ownEmail,
   threadTitle,
   personaToken,
   onBack,
 }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,15 +71,21 @@ export default function ChatView({
     setSending(true);
     setError(null);
     try {
-      const msg = await callMcp<Message>(
-        'send_message',
-        // agent.persona is the roster nickname (App maps AgentConfig.persona
-        // from RosterAgent.nickname); send_message resolves the target agent by
-        // `WHERE nickname = to_nickname`, so this routes to the selected agent.
-        { thread_id: threadId, content, to_nickname: agent.persona },
-        personaToken,
-      );
-      setSentIds(prev => new Set([...prev, msg.id]));
+      // Human-authored sends go through the OBO REST route, NOT MCP send_message
+      // (which is agent-only and would attribute this to the persona agent). The
+      // route persists role='user', author_user_id=lower(OBO email). agent.persona
+      // is the roster nickname (App maps AgentConfig.persona from
+      // RosterAgent.nickname), resolved server-side to route to the selected agent.
+      const res = await fetch(`/api/threads/${threadId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, to_nickname: agent.persona }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+        throw new Error(body.message ?? body.error ?? `Send failed (${res.status})`);
+      }
+      const msg = (await res.json()) as Message;
       setMessages(prev => [...prev.filter(m => m.id !== msg.id), msg]);
       setDraft('');
     } catch (e) {
@@ -97,15 +102,13 @@ export default function ChatView({
     }
   }
 
-  // A message is "mine" when it was authored by the persona the human operates
-  // as. Every message persists with parent_agent_id set to its author agent
-  // (send_message attributes to the caller's persona; role is always
-  // 'assistant' and so cannot distinguish sender from responder), so comparing
-  // against ownAgentId is reload-safe — it does not depend on the transient
-  // sentIds set, which is empty after a refetch. sentIds is still OR'd in to
-  // cover the optimistic append before the send response's fields are read.
+  // A message is "mine" only when it is human-authored (role='user') and its
+  // persisted author_user_id matches the current viewer's own OBO email. This is
+  // derived purely from persisted fields, so it is reload-safe (no in-session
+  // Set) and multi-human-correct: a different human's 'user' message and any
+  // agent's 'assistant' reply both render as "not mine".
   function isMine(msg: Message): boolean {
-    return msg.parent_agent_id === ownAgentId || sentIds.has(msg.id);
+    return msg.role === 'user' && msg.author_user_id?.toLowerCase() === ownEmail.toLowerCase();
   }
 
   return (

@@ -144,11 +144,11 @@ export default function App() {
   const selectedAgent =
     view.kind === 'chat' ? agents.find(a => a.id === view.agentId) : undefined;
 
-  // The persona the human operates as: the working persona token is minted for
-  // the roster's primary agent (agents[0], see init()), so messages the human
-  // sends persist attributed to it (messages.parent_agent_id). ChatView uses
-  // this to decide message ownership in a way that survives a reload.
-  const ownAgentId = agents[0]?.id;
+  // The current viewer's own OBO email. Human-authored messages persist with
+  // author_user_id = lower(this email), so ChatView derives message ownership
+  // (isMine) purely from persisted fields — reload-safe and correct when
+  // multiple distinct humans message in the same thread.
+  const ownEmail = identity?.email;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -209,11 +209,11 @@ export default function App() {
             </div>
           )}
 
-          {view.kind === 'chat' && personaToken && selectedAgent && ownAgentId && (
+          {view.kind === 'chat' && personaToken && selectedAgent && ownEmail && (
             <ChatView
               threadId={view.threadId}
               agent={selectedAgent}
-              ownAgentId={ownAgentId}
+              ownEmail={ownEmail}
               threadTitle={view.threadTitle}
               personaToken={personaToken}
               onBack={() => setView({ kind: 'project' })}
