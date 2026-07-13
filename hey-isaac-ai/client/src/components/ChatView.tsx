@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Badge, Button, ScrollArea, Textarea, Alert, AlertDescription } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
 import MessageBubble from './MessageBubble';
-import type { Message } from '../lib/types';
+import type { AgentConfig, Message } from '../lib/types';
 
-const GENIE_AGENT_ID = '00000000-0000-0000-0000-000000000002';
 const POLL_INTERVAL_MS = 3000;
 
 interface GetMessagesResult {
@@ -14,7 +13,9 @@ interface GetMessagesResult {
 
 interface ChatViewProps {
   threadId: string;
-  agentId: string;
+  // The live roster entry for the agent this thread targets — its nickname
+  // drives message routing and its label/color drive the header.
+  agent: AgentConfig;
   threadTitle: string;
   personaToken: string;
   onBack: () => void;
@@ -22,7 +23,7 @@ interface ChatViewProps {
 
 export default function ChatView({
   threadId,
-  agentId: _agentId,
+  agent,
   threadTitle,
   personaToken,
   onBack,
@@ -68,7 +69,7 @@ export default function ChatView({
     try {
       const msg = await callMcp<Message>(
         'send_message',
-        { thread_id: threadId, content, to_nickname: 'genie' },
+        { thread_id: threadId, content, to_nickname: agent.persona },
         personaToken,
       );
       setSentIds(prev => new Set([...prev, msg.id]));
@@ -88,9 +89,14 @@ export default function ChatView({
     }
   }
 
-  // A message is "mine" if we sent it OR if it's from the genie persona (same actor)
+  // Ownership is derived from the message's author fields, per the get_messages
+  // contract: the messages table enforces an XOR between author_user_id (human)
+  // and parent_agent_id (agent), so a null parent_agent_id means human-authored.
+  // Optimistically-appended sends stay "mine" via sentIds across poll refetches,
+  // where the persisted row comes back attributed to the sending persona agent.
   function isMine(msg: Message): boolean {
-    return sentIds.has(msg.id) || msg.parent_agent_id === GENIE_AGENT_ID;
+    const { author_user_id } = msg as Message & { author_user_id: string | null };
+    return sentIds.has(msg.id) || author_user_id != null;
   }
 
   return (
@@ -134,8 +140,21 @@ export default function ChatView({
             {threadTitle}
           </div>
         </div>
-        <Badge variant="secondary" style={{ whiteSpace: 'nowrap' }}>
-          🪔 genie
+        <Badge
+          variant="secondary"
+          style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: agent.color,
+              display: 'inline-block',
+            }}
+          />
+          {agent.label}
         </Badge>
       </div>
 
@@ -194,7 +213,7 @@ export default function ChatView({
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message Genie… (Enter to send, Shift+Enter for newline)"
+          placeholder={`Message ${agent.label}… (Enter to send, Shift+Enter for newline)`}
           aria-label="Message input"
           rows={2}
           style={{

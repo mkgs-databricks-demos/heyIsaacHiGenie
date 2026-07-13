@@ -137,6 +137,13 @@ export default function App() {
     return <LoadingView />;
   }
 
+  // Resolve the live roster entry for the chat's target agent so ChatView can
+  // route + render against real nickname/label/color instead of a hardcoded
+  // agent. undefined only if the roster no longer contains the id (guarded on
+  // render below).
+  const selectedAgent =
+    view.kind === 'chat' ? agents.find(a => a.id === view.agentId) : undefined;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Header identity={identity} />
@@ -196,10 +203,10 @@ export default function App() {
             </div>
           )}
 
-          {view.kind === 'chat' && personaToken && (
+          {view.kind === 'chat' && personaToken && selectedAgent && (
             <ChatView
               threadId={view.threadId}
-              agentId={view.agentId}
+              agent={selectedAgent}
               threadTitle={view.threadTitle}
               personaToken={personaToken}
               onBack={() => setView({ kind: 'project' })}
