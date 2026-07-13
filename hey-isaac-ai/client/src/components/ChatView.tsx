@@ -16,6 +16,10 @@ interface ChatViewProps {
   // The live roster entry for the agent this thread targets — its nickname
   // drives message routing and its label/color drive the header.
   agent: AgentConfig;
+  // The agent id of the persona the human is operating as (the persona token's
+  // agent). Messages the human sends persist with parent_agent_id === this, so
+  // it is the reload-safe signal for "mine".
+  ownAgentId: string;
   threadTitle: string;
   personaToken: string;
   onBack: () => void;
@@ -24,6 +28,7 @@ interface ChatViewProps {
 export default function ChatView({
   threadId,
   agent,
+  ownAgentId,
   threadTitle,
   personaToken,
   onBack,
@@ -69,6 +74,9 @@ export default function ChatView({
     try {
       const msg = await callMcp<Message>(
         'send_message',
+        // agent.persona is the roster nickname (App maps AgentConfig.persona
+        // from RosterAgent.nickname); send_message resolves the target agent by
+        // `WHERE nickname = to_nickname`, so this routes to the selected agent.
         { thread_id: threadId, content, to_nickname: agent.persona },
         personaToken,
       );
@@ -89,14 +97,15 @@ export default function ChatView({
     }
   }
 
-  // Ownership is derived from the message's author fields, per the get_messages
-  // contract: the messages table enforces an XOR between author_user_id (human)
-  // and parent_agent_id (agent), so a null parent_agent_id means human-authored.
-  // Optimistically-appended sends stay "mine" via sentIds across poll refetches,
-  // where the persisted row comes back attributed to the sending persona agent.
+  // A message is "mine" when it was authored by the persona the human operates
+  // as. Every message persists with parent_agent_id set to its author agent
+  // (send_message attributes to the caller's persona; role is always
+  // 'assistant' and so cannot distinguish sender from responder), so comparing
+  // against ownAgentId is reload-safe — it does not depend on the transient
+  // sentIds set, which is empty after a refetch. sentIds is still OR'd in to
+  // cover the optimistic append before the send response's fields are read.
   function isMine(msg: Message): boolean {
-    const { author_user_id } = msg as Message & { author_user_id: string | null };
-    return sentIds.has(msg.id) || author_user_id != null;
+    return msg.parent_agent_id === ownAgentId || sentIds.has(msg.id);
   }
 
   return (
