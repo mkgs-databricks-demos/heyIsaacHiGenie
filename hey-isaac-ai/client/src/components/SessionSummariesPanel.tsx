@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   AlertDescription,
@@ -26,9 +26,7 @@ export default function SessionSummariesPanel({
   personaToken,
 }: SessionSummariesPanelProps) {
   const [summaries, setSummaries] = useState<SessionSummary[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingInitial, setLoadingInitial] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -50,13 +48,21 @@ export default function SessionSummariesPanel({
     setLoadingInitial(true);
     setLoadError(null);
     try {
-      const result = await loadSummaries();
-      setSummaries(result.summaries);
-      setNextCursor(result.next_cursor);
+      const allSummaries: SessionSummary[] = [];
+      let cursor: string | null = null;
+
+      do {
+        // Known server-tool limitation: pagination advances by UUID id while the
+        // query orders by created_at ASC, so this client drains the full result set.
+        const result = await loadSummaries(cursor);
+        allSummaries.push(...result.summaries);
+        cursor = result.next_cursor;
+      } while (cursor);
+
+      setSummaries(allSummaries.reverse());
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
       setSummaries([]);
-      setNextCursor(null);
     } finally {
       setLoadingInitial(false);
     }
@@ -67,21 +73,6 @@ export default function SessionSummariesPanel({
     setSaveError(null);
     void refreshSummaries();
   }, [refreshSummaries, threadId]);
-
-  async function handleLoadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    setLoadError(null);
-    try {
-      const result = await loadSummaries(nextCursor);
-      setSummaries(prev => [...prev, ...result.summaries.filter(summary => !prev.some(item => item.id === summary.id))]);
-      setNextCursor(result.next_cursor);
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoadingMore(false);
-    }
-  }
 
   async function handleSaveSummary() {
     const content = draft.trim();
@@ -96,7 +87,7 @@ export default function SessionSummariesPanel({
       );
       setSummaries(prev => {
         if (prev.some(item => item.id === summary.id)) return prev;
-        return [...prev, summary];
+        return [summary, ...prev];
       });
       setDraft('');
     } catch (e) {
@@ -105,9 +96,6 @@ export default function SessionSummariesPanel({
       setSaving(false);
     }
   }
-
-  const orderedSummaries = useMemo(() => [...summaries].reverse(), [summaries]);
-
   return (
     <aside
       aria-label="Session summaries"
@@ -177,7 +165,7 @@ export default function SessionSummariesPanel({
           >
             <Spinner />
           </div>
-        ) : orderedSummaries.length === 0 ? (
+        ) : summaries.length === 0 ? (
           <div
             style={{
               border: '1px dashed var(--border)',
@@ -193,7 +181,7 @@ export default function SessionSummariesPanel({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {orderedSummaries.map(summary => (
+            {summaries.map(summary => (
               <article
                 key={summary.id}
                 style={{
@@ -224,12 +212,6 @@ export default function SessionSummariesPanel({
                 </div>
               </article>
             ))}
-
-            {nextCursor && (
-              <Button variant="outline" onClick={() => void handleLoadMore()} disabled={loadingMore}>
-                {loadingMore ? 'Loading…' : 'Load more'}
-              </Button>
-            )}
           </div>
         )}
       </div>
