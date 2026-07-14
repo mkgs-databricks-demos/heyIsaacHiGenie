@@ -77,6 +77,40 @@ export function registerTools(server: McpServer, db: Db, req: Request) {
     },
   );
 
+  // Tool: list_threads
+  // Threads have no agent-linkage column at the schema level (see schema.sql
+  // table 6) — "which agent(s) a thread involves" is derived from the
+  // messages sent in it (parent_agent_id for agent-authored replies,
+  // to_agent_id for messages routed to an agent). A brand-new thread with no
+  // messages yet therefore has an empty agent_ids array; that's the correct
+  // reflection of the data, not a bug.
+  server.tool(
+    'list_threads',
+    'List persisted threads for a project, with agent involvement derived from message linkage',
+    { project_id: z.string().describe('Project ID') },
+    async ({ project_id }) => {
+      const memberCheck = await db.query<ProjectMember>(
+        'SELECT * FROM project_members WHERE project_id = $1 AND user_id = lower($2)',
+        [project_id, human],
+      );
+      if (memberCheck.rows.length === 0) return err('Not a member of this project');
+
+      const result = await db.query<Thread & { agent_ids: string[] }>(
+        `SELECT t.*,
+                COALESCE(array_agg(DISTINCT ag) FILTER (WHERE ag IS NOT NULL), '{}') AS agent_ids
+         FROM threads t
+         LEFT JOIN messages m ON m.thread_id = t.id
+         LEFT JOIN LATERAL unnest(ARRAY[m.parent_agent_id, m.to_agent_id]) AS ag ON true
+         WHERE t.project_id = $1
+         GROUP BY t.id
+         ORDER BY t.updated_at DESC
+         LIMIT 200`,
+        [project_id],
+      );
+      return ok(result.rows);
+    },
+  );
+
   // Tool 3: start_thread
   server.tool(
     'start_thread',
