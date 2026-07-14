@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Badge, Button, ScrollArea, Textarea, Alert, AlertDescription } from '@databricks/appkit-ui/react';
 import { callMcp } from '../lib/mcp';
 import MessageBubble from './MessageBubble';
+import SessionSummariesPanel from './SessionSummariesPanel';
 import type { AgentConfig, Message } from '../lib/types';
 
 const POLL_INTERVAL_MS = 3000;
@@ -115,134 +116,145 @@ export default function ChatView({
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'row',
         height: '100%',
         background: 'var(--background)',
       }}
     >
-      {/* Thread header */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 20px',
-          background: 'var(--card)',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
+          flexDirection: 'column',
+          flex: 1,
+          minWidth: 0,
         }}
       >
-        <Button
-          variant="outline"
-          onClick={onBack}
-          aria-label="Back to project"
-          style={{ padding: '4px 10px', fontSize: 13 }}
-        >
-          ← Back
-        </Button>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div
-            style={{
-              fontSize: 16,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {threadTitle}
-          </div>
-        </div>
-        <Badge
-          variant="secondary"
-          style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: agent.color,
-              display: 'inline-block',
-            }}
-          />
-          {agent.label}
-        </Badge>
-      </div>
-
-      {/* Message list */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-        {messages.length === 0 && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              gap: 12,
-              color: 'var(--muted-foreground)',
-            }}
-          >
-            <span style={{ fontSize: 40 }}>🪔</span>
-            <p style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
-              No messages yet.
-              <br />
-              Send one to get started!
-            </p>
-          </div>
-        )}
-        {messages.map(msg => (
-          <MessageBubble key={msg.id} message={msg} isMine={isMine(msg)} />
-        ))}
-      </div>
-
-      {/* Error banner */}
-      {error && (
-        <Alert
-          variant="destructive"
+        {/* Thread header */}
+        <div
           style={{
-            margin: '0 20px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 20px',
+            background: 'var(--card)',
+            borderBottom: '1px solid var(--border)',
             flexShrink: 0,
           }}
         >
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+          <Button
+            variant="outline"
+            onClick={onBack}
+            aria-label="Back to project"
+            style={{ padding: '4px 10px', fontSize: 13 }}
+          >
+            ← Back
+          </Button>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div
+              style={{
+                fontSize: 16,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {threadTitle}
+            </div>
+          </div>
+          <Badge
+            variant="secondary"
+            style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: agent.color,
+                display: 'inline-block',
+              }}
+            />
+            {agent.label}
+          </Badge>
+        </div>
 
-      {/* Input bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          padding: '12px 20px',
-          background: 'var(--card)',
-          borderTop: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        <Textarea
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={`Message ${agent.label}… (Enter to send, Shift+Enter for newline)`}
-          aria-label="Message input"
-          rows={2}
+        {/* Message list */}
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          {messages.length === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                gap: 12,
+                color: 'var(--muted-foreground)',
+              }}
+            >
+              <span style={{ fontSize: 40 }}>🪔</span>
+              <p style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
+                No messages yet.
+                <br />
+                Send one to get started!
+              </p>
+            </div>
+          )}
+          {messages.map(msg => (
+            <MessageBubble key={msg.id} message={msg} isMine={isMine(msg)} />
+          ))}
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <Alert
+            variant="destructive"
+            style={{
+              margin: '0 20px 8px',
+              flexShrink: 0,
+            }}
+          >
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Input bar */}
+        <div
           style={{
-            flex: 1,
-            resize: 'none',
-            fontSize: 14,
+            display: 'flex',
+            gap: 10,
+            padding: '12px 20px',
+            background: 'var(--card)',
+            borderTop: '1px solid var(--border)',
+            flexShrink: 0,
           }}
-        />
-        <Button
-          onClick={() => void handleSend()}
-          disabled={!draft.trim() || sending}
-          aria-label="Send message"
-          style={{ alignSelf: 'flex-end' }}
         >
-          {sending ? '…' : 'Send'}
-        </Button>
+          <Textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message ${agent.label}… (Enter to send, Shift+Enter for newline)`}
+            aria-label="Message input"
+            rows={2}
+            style={{
+              flex: 1,
+              resize: 'none',
+              fontSize: 14,
+            }}
+          />
+          <Button
+            onClick={() => void handleSend()}
+            disabled={!draft.trim() || sending}
+            aria-label="Send message"
+            style={{ alignSelf: 'flex-end' }}
+          >
+            {sending ? '…' : 'Send'}
+          </Button>
+        </div>
       </div>
+
+      <SessionSummariesPanel threadId={threadId} personaToken={personaToken} />
     </div>
   );
 }

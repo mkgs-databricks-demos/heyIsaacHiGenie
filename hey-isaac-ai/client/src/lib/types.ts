@@ -71,6 +71,14 @@ export interface Message {
   created_at: string;
 }
 
+export interface SessionSummary {
+  id: string;
+  thread_id: string;
+  parent_agent_id: string | null;
+  summary: string;
+  created_at: string;
+}
+
 export interface RepoStatus {
   url: string;
   last_delivery: string | null;
