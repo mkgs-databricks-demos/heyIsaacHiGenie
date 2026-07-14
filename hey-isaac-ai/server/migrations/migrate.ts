@@ -9,6 +9,7 @@ import { migration007 } from './007_github_tokens.js';
 import { migration008 } from './008_replica_identity.js';
 import { migration009 } from './009_per_repo_fields.js';
 import { migration010 } from './010_agent_presentation.js';
+import { migration011 } from './011_thread_read_state.js';
 
 export interface Migration {
   name: string;
@@ -26,6 +27,7 @@ const migrations: Migration[] = [
   migration008,
   migration009,
   migration010,
+  migration011,
 ];
 
 // CONVENTION: every CREATE TABLE in a migration must be followed immediately by

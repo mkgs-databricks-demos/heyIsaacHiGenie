@@ -23,6 +23,9 @@ interface ChatViewProps {
   ownEmail: string;
   threadTitle: string;
   personaToken: string;
+  // Called after this thread is marked read for the signed-in human, so the
+  // parent can refresh sidebar unread badges. Optional (no project context yet).
+  onMarkedRead?: () => void;
   onBack: () => void;
 }
 
@@ -32,6 +35,7 @@ export default function ChatView({
   ownEmail,
   threadTitle,
   personaToken,
+  onMarkedRead,
   onBack,
 }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -74,12 +78,35 @@ export default function ChatView({
     }
   }, [agent.id, markMessagesRead, threadId, personaToken]);
 
-  // Initial load + polling
+  // Mark this thread read for the signed-in human as of now, then let the
+  // parent refresh sidebar badges. OBO-authenticated REST route (not MCP) —
+  // per-human read state, mirroring the human-send path. Best-effort: a failed
+  // mark just leaves the badge until the next tick.
+  const markRead = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/threads/${threadId}/read`, { method: 'POST' });
+      if (res.ok) onMarkedRead?.();
+    } catch {
+      // Non-fatal — badge clears on a later tick.
+    }
+  }, [threadId, onMarkedRead]);
+
+  // Initial load + polling. The human is actively viewing this thread, so mark
+  // it read after each fetch — this clears its badge and keeps it clear as new
+  // messages arrive while the thread is open.
   useEffect(() => {
-    void fetchMessages();
-    const interval = setInterval(() => void fetchMessages(), POLL_INTERVAL_MS);
+    void (async () => {
+      await fetchMessages();
+      await markRead();
+    })();
+    const interval = setInterval(() => {
+      void (async () => {
+        await fetchMessages();
+        await markRead();
+      })();
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchMessages]);
+  }, [fetchMessages, markRead]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
