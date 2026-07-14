@@ -53,6 +53,22 @@ export default function App() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [initError, setInitError] = useState<string | null>(null);
   const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
+  // Per-thread unread counts for the signed-in human, keyed by thread id.
+  // Sourced from the OBO GET /api/threads/unread-counts route (per-human,
+  // project-scoped). Refreshed on load, on a light poll, and whenever ChatView
+  // marks a thread read — so sidebar badges update without a full reload.
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  const refreshUnreadCounts = useCallback(async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/threads/unread-counts?project_id=${encodeURIComponent(projectId)}`);
+      if (!res.ok) return; // Non-fatal — badges just don't update this tick.
+      const data = (await res.json()) as { counts?: Record<string, number> };
+      setUnreadCounts(data.counts ?? {});
+    } catch {
+      // Non-fatal — keep the last known counts.
+    }
+  }, []);
 
   const refreshGitHubStatus = useCallback(async () => {
     try {
@@ -115,6 +131,9 @@ export default function App() {
           } catch {
             // Non-fatal — sidebar just shows no threads until the next fetch.
           }
+
+          // Seed unread badges once threads exist.
+          void refreshUnreadCounts(boot.project.id);
         }
 
         setView({ kind: 'project' });
@@ -128,7 +147,16 @@ export default function App() {
     }
 
     void init();
-  }, [refreshGitHubStatus]);
+  }, [refreshGitHubStatus, refreshUnreadCounts]);
+
+  // Light background poll so badges surface new messages even while the human
+  // is on the project view (not inside a thread). ChatView also refreshes
+  // counts on mark-read for immediate feedback; this covers the idle case.
+  useEffect(() => {
+    if (!project) return;
+    const interval = setInterval(() => void refreshUnreadCounts(project.id), 5000);
+    return () => clearInterval(interval);
+  }, [project, refreshUnreadCounts]);
 
   function handleStartThread(thread: Thread, agentId: string) {
     // Server-side agent_ids only reflects real message linkage, which is
@@ -199,6 +227,7 @@ export default function App() {
           threads={threads}
           view={view}
           agents={agents}
+          unreadCounts={unreadCounts}
           onNavigateProject={() => setView({ kind: 'project' })}
           onNavigateChat={handleNavigateChat}
         />
@@ -237,6 +266,7 @@ export default function App() {
               ownEmail={ownEmail}
               threadTitle={view.threadTitle}
               personaToken={personaToken}
+              onMarkedRead={project ? () => void refreshUnreadCounts(project.id) : undefined}
               onBack={() => setView({ kind: 'project' })}
             />
           )}

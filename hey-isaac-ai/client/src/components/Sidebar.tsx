@@ -6,6 +6,9 @@ interface SidebarProps {
   threads: Thread[];
   view: View;
   agents: AgentConfig[];
+  // Per-thread unread count for the signed-in human, keyed by thread id.
+  // A thread absent from the map (or with 0) shows no badge.
+  unreadCounts: Record<string, number>;
   onNavigateProject: () => void;
   onNavigateChat: (thread: Thread, agentId: string) => void;
 }
@@ -24,6 +27,7 @@ export default function Sidebar({
   threads,
   view,
   agents,
+  unreadCounts,
   onNavigateProject,
   onNavigateChat,
 }: SidebarProps) {
@@ -147,13 +151,17 @@ export default function Sidebar({
               {agentThreads.map(thread => {
                 const isActive =
                   view.kind === 'chat' && view.threadId === thread.id;
+                const unread = unreadCounts[thread.id] ?? 0;
+                const showBadge = unread > 0 && !isActive;
                 return (
                   <button
                     key={thread.id}
                     onClick={() => onNavigateChat(thread, agent.id)}
                     aria-current={isActive ? 'page' : undefined}
                     style={{
-                      display: 'block',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                       width: '100%',
                       padding: '5px 16px 5px 40px',
                       background: isActive ? 'var(--sidebar-accent)' : 'transparent',
@@ -167,12 +175,43 @@ export default function Sidebar({
                       fontSize: 12,
                       cursor: 'pointer',
                       textAlign: 'left',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {thread.title ?? 'Untitled thread'}
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: showBadge ? 600 : 400,
+                        color: showBadge ? 'var(--sidebar-foreground)' : undefined,
+                      }}
+                    >
+                      {thread.title ?? 'Untitled thread'}
+                    </span>
+                    {showBadge && (
+                      <span
+                        aria-label={`${unread} unread`}
+                        style={{
+                          flexShrink: 0,
+                          minWidth: 18,
+                          height: 18,
+                          padding: '0 5px',
+                          borderRadius: 9,
+                          background: 'var(--sidebar-primary)',
+                          color: 'var(--primary-foreground)',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </button>
                 );
               })}
