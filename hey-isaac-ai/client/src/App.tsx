@@ -6,6 +6,7 @@ import ProjectView from './components/ProjectView';
 import ChatView from './components/ChatView';
 import GitHubAppSetupBanner from './components/GitHubAppSetupBanner';
 import { fetchGitHubStatus, type GitHubStatus } from './lib/github';
+import { callMcp } from './lib/mcp';
 import type {
   Identity,
   View,
@@ -98,7 +99,22 @@ export default function App() {
         // null — the shell renders the 'no agents' placeholder gracefully.
         const primary = agentList[0];
         if (primary) {
-          setPersonaToken(await mintPersonaToken(primary.persona, boot.project.id));
+          const token = await mintPersonaToken(primary.persona, boot.project.id);
+          setPersonaToken(token);
+
+          // Step 3b: Hydrate persisted threads so the sidebar survives a
+          // reload instead of starting empty (threads previously only lived
+          // in this component's state).
+          try {
+            const persistedThreads = await callMcp<Thread[]>(
+              'list_threads',
+              { project_id: boot.project.id },
+              token,
+            );
+            setThreads(persistedThreads);
+          } catch {
+            // Non-fatal — sidebar just shows no threads until the next fetch.
+          }
         }
 
         setView({ kind: 'project' });
@@ -115,7 +131,12 @@ export default function App() {
   }, [refreshGitHubStatus]);
 
   function handleStartThread(thread: Thread, agentId: string) {
-    setThreads(prev => [...prev, thread]);
+    // Server-side agent_ids only reflects real message linkage, which is
+    // empty for a brand-new thread — seed it locally with the agent this
+    // thread was started for so it shows under the right sidebar entry
+    // immediately, ahead of the first message. A reload re-fetches via
+    // list_threads and will show the same real linkage once messages exist.
+    setThreads(prev => [...prev, { ...thread, agent_ids: [agentId] }]);
     setView({
       kind: 'chat',
       threadId: thread.id,

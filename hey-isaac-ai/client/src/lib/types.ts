@@ -50,6 +50,11 @@ export interface Thread {
   created_by: string;
   created_at: string;
   updated_at: string;
+  // Agent(s) involved in this thread, derived server-side (list_threads) from
+  // message linkage (parent_agent_id / to_agent_id) — threads have no
+  // agent-linkage column of their own. Empty for a freshly-created thread
+  // that has no messages yet.
+  agent_ids?: string[];
 }
 
 export interface Message {

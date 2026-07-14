@@ -321,7 +321,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
          LEFT JOIN agent_grants ag ON ag.agent_id = a.id AND ag.user_id = lower($2)
          WHERE a.project_id = $1
          ORDER BY a.nickname
-         LIMIT 200`,[e,r]);return N9(i.rows)}),e.tool(`start_thread`,`Create a new thread in a project`,{project_id:d1().describe(`Project ID`),task_id:d1().optional().describe(`Optional task ID to link`),title:d1().optional().describe(`Optional thread title`),agent_id:d1().optional().describe(`Optional agent the thread is started for`)},async({project_id:e,task_id:i,title:a,agent_id:o})=>{if(o){let n=await t.query(`SELECT id FROM agents WHERE id = $1 AND project_id = $2`,[o,e]);if(n.rows.length===0)return M9(`Agent not found in this project`)}let s=await t.asUser(n).query(`INSERT INTO threads (id, project_id, task_id, title, created_by, created_at, updated_at)
+         LIMIT 200`,[e,r]);return N9(i.rows)}),e.tool(`list_threads`,`List persisted threads for a project, with agent involvement derived from message linkage`,{project_id:d1().describe(`Project ID`)},async({project_id:e})=>{let n=await t.query(`SELECT * FROM project_members WHERE project_id = $1 AND user_id = lower($2)`,[e,r]);if(n.rows.length===0)return M9(`Not a member of this project`);let i=await t.query(`SELECT t.*,
+                COALESCE(array_agg(DISTINCT ag) FILTER (WHERE ag IS NOT NULL), '{}') AS agent_ids
+         FROM threads t
+         LEFT JOIN messages m ON m.thread_id = t.id
+         LEFT JOIN LATERAL unnest(ARRAY[m.parent_agent_id, m.to_agent_id]) AS ag ON true
+         WHERE t.project_id = $1
+         GROUP BY t.id
+         ORDER BY t.updated_at DESC
+         LIMIT 200`,[e]);return N9(i.rows)}),e.tool(`start_thread`,`Create a new thread in a project`,{project_id:d1().describe(`Project ID`),task_id:d1().optional().describe(`Optional task ID to link`),title:d1().optional().describe(`Optional thread title`),agent_id:d1().optional().describe(`Optional agent the thread is started for`)},async({project_id:e,task_id:i,title:a,agent_id:o})=>{if(o){let n=await t.query(`SELECT id FROM agents WHERE id = $1 AND project_id = $2`,[o,e]);if(n.rows.length===0)return M9(`Agent not found in this project`)}let s=await t.asUser(n).query(`INSERT INTO threads (id, project_id, task_id, title, created_by, created_at, updated_at)
          VALUES (gen_random_uuid(), $1, $2, $3, lower($4), now(), now())
          RETURNING *`,[e,i??null,a??null,r]);return N9(s.rows[0])}),e.tool(`send_message`,`Send a message in a thread`,{thread_id:d1().describe(`Thread ID`),content:d1().describe(`Message content`),to_nickname:d1().optional().describe(`Target agent nickname`)},async({thread_id:e,content:r,to_nickname:a})=>{let o=null;if(a){let n=await t.query(`SELECT id FROM agents
            WHERE project_id = (SELECT project_id FROM threads WHERE id = $1)

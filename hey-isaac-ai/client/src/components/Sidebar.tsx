@@ -90,7 +90,12 @@ export default function Sidebar({
 
         {/* Agents + their threads */}
         {agents.map(agent => {
-          const agentThreads = threads.filter(t => t.id);
+          // agent_ids is derived server-side (list_threads) from message
+          // linkage — a thread only "belongs" to an agent once a message has
+          // been exchanged with it (see Thread.agent_ids). Freshly-created
+          // threads with no messages yet won't match any agent here until
+          // the optimistic append in App.tsx seeds agent_ids locally.
+          const agentThreads = threads.filter(t => t.agent_ids?.includes(agent.id));
           return (
             <div key={agent.id}>
               <div
