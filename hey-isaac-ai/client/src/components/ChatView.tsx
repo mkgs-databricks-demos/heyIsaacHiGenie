@@ -40,6 +40,21 @@ export default function ChatView({
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const markMessagesRead = useCallback(
+    async (latestMessageId: string) => {
+      try {
+        await callMcp(
+          'mark_messages_read',
+          { thread_id: threadId, up_to_message_id: latestMessageId },
+          personaToken,
+        );
+      } catch {
+        // Silently swallow read-receipt errors to avoid spamming the UI
+      }
+    },
+    [threadId, personaToken],
+  );
+
   const fetchMessages = useCallback(async () => {
     try {
       const result = await callMcp<GetMessagesResult>(
@@ -48,10 +63,16 @@ export default function ChatView({
         personaToken,
       );
       setMessages(result.messages);
+      const latestAddressedToPersona = [...result.messages].reverse().find(
+        message => message.to_agent_id === agent.id,
+      );
+      if (latestAddressedToPersona) {
+        void markMessagesRead(latestAddressedToPersona.id);
+      }
     } catch {
       // Silently swallow poll errors to avoid spamming the UI
     }
-  }, [threadId, personaToken]);
+  }, [agent.id, markMessagesRead, threadId, personaToken]);
 
   // Initial load + polling
   useEffect(() => {
