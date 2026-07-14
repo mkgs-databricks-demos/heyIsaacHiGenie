@@ -10,6 +10,7 @@ import { callMcp } from '../lib/mcp';
 import type { SessionSummary } from '../lib/types';
 
 const PAGE_SIZE = 20;
+const MAX_DRAIN_PAGES = 10;
 
 interface GetSessionSummariesResult {
   summaries: SessionSummary[];
@@ -48,18 +49,28 @@ export default function SessionSummariesPanel({
     setLoadingInitial(true);
     setLoadError(null);
     try {
-      const allSummaries: SessionSummary[] = [];
+      const summariesById = new Map<string, SessionSummary>();
       let cursor: string | null = null;
+      let pagesLoaded = 0;
 
       do {
-        // Known server-tool limitation: pagination advances by UUID id while the
-        // query orders by created_at ASC, so this client drains the full result set.
+        // Known server-tool limitation: pagination advances by random UUID id while
+        // ordering by created_at ASC, so pages can overlap or skip rows; dedupe here
+        // avoids duplicate keys, but completeness is not guaranteed client-side.
         const result = await loadSummaries(cursor);
-        allSummaries.push(...result.summaries);
+        for (const summary of result.summaries) {
+          summariesById.set(summary.id, summary);
+        }
         cursor = result.next_cursor;
-      } while (cursor);
+        pagesLoaded += 1;
+      } while (cursor && pagesLoaded < MAX_DRAIN_PAGES);
 
-      setSummaries(allSummaries.reverse());
+      setSummaries(
+        [...summariesById.values()].sort(
+          (left, right) =>
+            new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+        ),
+      );
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
       setSummaries([]);
